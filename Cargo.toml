@@ -1,0 +1,25 @@
+[workspace]
+resolver = "2"
+members = [
+    "src/lib/vtp-core"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/your-org/vtp-node"
+description = "Verifiable Time Proof (VTP) - Core library for browser-based VDF/VRF"
+
+[workspace.dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Window",
+    "Performance",
+    "PerformanceTiming"
+] }
+console_error_panic_hook = "0.1"
