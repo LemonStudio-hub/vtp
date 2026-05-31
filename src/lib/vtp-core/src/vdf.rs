@@ -115,6 +115,7 @@ impl VdfIterator {
     ///
     /// # 性能考虑
     /// 对于批量处理，建议使用 `run_batch` 方法以获得更好的性能
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> bool {
         if self.is_finished() {
             return false;

@@ -68,12 +68,14 @@ VTP Node is a static web application that can be deployed to any static hosting 
 The simplest deployment option. Upload the `build/` directory to any static hosting provider.
 
 **Pros:**
+
 - Simple setup
 - Low cost
 - High availability
 - Global CDN
 
 **Cons:**
+
 - No server-side logic
 - Limited customization
 
@@ -82,11 +84,13 @@ The simplest deployment option. Upload the `build/` directory to any static host
 Deploy using Docker for more control over the environment.
 
 **Pros:**
+
 - Consistent environment
 - Easy scaling
 - Custom configuration
 
 **Cons:**
+
 - More complex setup
 - Higher resource usage
 
@@ -95,11 +99,13 @@ Deploy using Docker for more control over the environment.
 Host on your own server with Nginx or Apache.
 
 **Pros:**
+
 - Full control
 - Custom domain
 - No vendor lock-in
 
 **Cons:**
+
 - Maintenance overhead
 - Security responsibility
 
@@ -223,6 +229,7 @@ npm run compress:gzip
    - Node.js version: 18
 
 3. **Environment Variables**
+
    ```
    NODE_ENV=production
    ```
@@ -266,11 +273,13 @@ Create `public/_headers` file:
 #### Setup
 
 1. **Install Vercel CLI**
+
    ```bash
    npm i -g vercel
    ```
 
 2. **Deploy**
+
    ```bash
    vercel
    ```
@@ -393,28 +402,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          
+
       - name: Install wasm-pack
         run: cargo install wasm-pack
-        
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build
         run: |
           npm run wasm:build
           npm run build
-          
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -429,11 +438,13 @@ jobs:
 #### Setup
 
 1. **Create S3 Bucket**
+
    ```bash
    aws s3 mb s3://vtp-node-app
    ```
 
 2. **Enable Static Website Hosting**
+
    ```bash
    aws s3 website s3://vtp-node-app \
      --index-document index.html \
@@ -441,6 +452,7 @@ jobs:
    ```
 
 3. **Upload Files**
+
    ```bash
    aws s3 sync build/ s3://vtp-node-app --delete
    ```
@@ -494,29 +506,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
-          
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Run linting
         run: npm run lint
-        
+
       - name: Run tests
         run: |
           npm run wasm:test
           npm test
-          
+
       - name: Build
         run: |
           npm run wasm:build
@@ -528,26 +540,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
-          
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build
         run: |
           npm run wasm:build
           npm run build
-          
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
@@ -613,12 +625,12 @@ deploy:
 ```groovy
 pipeline {
     agent any
-    
+
     environment {
         NODE_VERSION = '18'
         RUST_VERSION = 'stable'
     }
-    
+
     stages {
         stage('Setup') {
             steps {
@@ -627,7 +639,7 @@ pipeline {
                 sh 'cargo install wasm-pack'
             }
         }
-        
+
         stage('Test') {
             steps {
                 sh 'npm run lint'
@@ -635,14 +647,14 @@ pipeline {
                 sh 'npm test'
             }
         }
-        
+
         stage('Build') {
             steps {
                 sh 'npm run wasm:build'
                 sh 'npm run build'
             }
         }
-        
+
         stage('Deploy') {
             when {
                 branch 'main'
@@ -653,7 +665,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             cleanWs()
@@ -683,7 +695,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v9
         with:
@@ -716,7 +728,7 @@ import * as Sentry from '@sentry/svelte';
 Sentry.init({
   dsn: 'https://your-dsn@sentry.io/your-project',
   environment: import.meta.env.MODE,
-  tracesSampleRate: 1.0,
+  tracesSampleRate: 1.0
 });
 ```
 
@@ -726,9 +738,9 @@ Sentry.init({
 <!-- src/components/ErrorBoundary.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  
+
   let error: Error | null = null;
-  
+
   onMount(() => {
     window.onerror = (message, source, lineno, colno, err) => {
       error = err || new Error(message as string);
@@ -740,9 +752,7 @@ Sentry.init({
   <div class="error-boundary">
     <h2>Something went wrong</h2>
     <p>{error.message}</p>
-    <button on:click={() => window.location.reload()}>
-      Reload Page
-    </button>
+    <button on:click={() => window.location.reload()}> Reload Page </button>
   </div>
 {:else}
   <slot />
@@ -760,7 +770,7 @@ export function initGA(trackingId: string) {
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${trackingId}`;
   document.head.appendChild(script);
-  
+
   window.dataLayer = window.dataLayer || [];
   function gtag(...args: any[]) {
     window.dataLayer.push(args);
@@ -785,6 +795,7 @@ export function trackEvent(action: string, category: string, label?: string, val
 ### HTTPS
 
 HTTPS is required for:
+
 - Service Workers
 - PWA installation
 - WebAssembly
@@ -806,7 +817,7 @@ sudo certbot certonly --standalone -d vtp-node.dev
 Add CSP headers to prevent XSS attacks:
 
 ```
-Content-Security-Policy: 
+Content-Security-Policy:
   default-src 'self';
   script-src 'self' 'unsafe-inline' 'unsafe-eval';
   style-src 'self' 'unsafe-inline';
@@ -841,6 +852,7 @@ location /api/ {
 **Error**: `Failed to execute 'compile' on 'WebAssembly': Incorrect response MIME type`
 
 **Solution**:
+
 ```nginx
 # nginx.conf
 location ~* \.wasm$ {
@@ -854,6 +866,7 @@ location ~* \.wasm$ {
 **Error**: `Service worker registration failed`
 
 **Solution**:
+
 1. Ensure HTTPS is enabled
 2. Check service worker file exists
 3. Verify file permissions
@@ -864,6 +877,7 @@ location ~* \.wasm$ {
 **Error**: Install prompt not appearing
 
 **Solution**:
+
 1. Verify manifest.json is valid
 2. Ensure all required icons exist
 3. Check service worker is registered
@@ -874,6 +888,7 @@ location ~* \.wasm$ {
 **Error**: Application is slow in production
 
 **Solution**:
+
 1. Enable gzip compression
 2. Configure caching headers
 3. Optimize images
@@ -885,8 +900,8 @@ Enable debug mode in production:
 
 ```typescript
 // src/config.ts
-export const DEBUG = import.meta.env.DEV || 
-  new URLSearchParams(window.location.search).has('debug');
+export const DEBUG =
+  import.meta.env.DEV || new URLSearchParams(window.location.search).has('debug');
 ```
 
 ### Logs
@@ -909,6 +924,7 @@ Check application logs:
 ## Support
 
 For deployment questions:
+
 - **GitHub Issues**: [Create an issue](https://github.com/your-org/vtp-node/issues)
 - **Email**: deploy@vtp-node.dev
 

@@ -121,9 +121,7 @@
   <!-- 控制按钮区域 -->
   <section class="controls">
     <!-- 开始按钮：仅在未运行时可用 -->
-    <button on:click={handleStart} disabled={$workerState.isRunning}>
-      Start
-    </button>
+    <button on:click={handleStart} disabled={$workerState.isRunning}> Start </button>
 
     <!-- 暂停按钮：仅在运行中且未暂停时可用 -->
     <button on:click={handlePause} disabled={!$workerState.isRunning || $workerState.isPaused}>
@@ -131,9 +129,7 @@
     </button>
 
     <!-- 恢复按钮：仅在暂停状态时可用 -->
-    <button on:click={handleResume} disabled={!$workerState.isPaused}>
-      Resume
-    </button>
+    <button on:click={handleResume} disabled={!$workerState.isPaused}> Resume </button>
   </section>
 
   <!-- 事件日志区域 -->

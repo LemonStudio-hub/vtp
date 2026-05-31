@@ -20,9 +20,5 @@
     ".svelte-kit/non-ambient.d.ts",
     ".svelte-kit/types/**/$types.d.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "src/lib/vtp-core",
-    "static"
-  ]
+  "exclude": ["node_modules", "src/lib/vtp-core", "static"]
 }

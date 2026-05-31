@@ -156,10 +156,7 @@ export const progress = derived(workerState, ($state) => {
  * - 新事件添加到列表开头
  */
 export function addEvent(event: Omit<VtpEvent, 'timestamp'>) {
-  events.update((current) => [
-    { ...event, timestamp: Date.now() },
-    ...current.slice(0, 49)
-  ]);
+  events.update((current) => [{ ...event, timestamp: Date.now() }, ...current.slice(0, 49)]);
 }
 
 /**

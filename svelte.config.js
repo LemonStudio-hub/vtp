@@ -13,9 +13,9 @@ const config = {
       strict: true
     }),
     alias: {
-      '$stores': 'src/stores',
-      '$components': 'src/components',
-      '$utils': 'src/utils'
+      $stores: 'src/stores',
+      $components: 'src/components',
+      $utils: 'src/utils'
     }
   }
 };

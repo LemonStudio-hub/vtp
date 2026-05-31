@@ -77,9 +77,11 @@ pub fn vdf_step(state: &[u8; 32]) -> [u8; 32]
 | `state` | `[u8; 32]` | Current VDF state (32 bytes) |
 
 **Returns:**
+
 - `[u8; 32]`: New state after SHA256 iteration
 
 **Example:**
+
 ```rust
 let state = [0u8; 32];
 let next_state = vdf_step(&state);
@@ -155,6 +157,7 @@ pub fn is_finished(&self) -> bool
 ```
 
 **Returns:**
+
 - `true`: All steps completed
 - `false`: Steps remaining
 
@@ -181,6 +184,7 @@ pub fn next(&mut self) -> bool
 ```
 
 **Returns:**
+
 - `true`: Step executed successfully
 - `false`: Already finished
 
@@ -202,6 +206,7 @@ pub fn run_batch(&mut self, max_steps: u64) -> u64
 **Returns:** Number of steps actually executed
 
 **Example:**
+
 ```rust
 let seed = [0u8; 32];
 let mut iter = VdfIterator::new(&seed, 1000);
@@ -226,6 +231,7 @@ pub fn generate_keypair() -> VrfKeypair
 **Returns:** `VrfKeypair` containing public and secret keys
 
 **Example:**
+
 ```rust
 let keypair = generate_keypair();
 println!("Public key: {:?}", keypair.public_key());
@@ -291,6 +297,7 @@ pub fn prove(secret_key: &[u8], message: &[u8]) -> Vec<u8>
 **Panics:** If secret_key is not 32 bytes
 
 **Example:**
+
 ```rust
 let keypair = generate_keypair();
 let message = b"challenge data";
@@ -315,10 +322,12 @@ pub fn verify(public_key: &[u8], message: &[u8], proof: &[u8]) -> bool
 | `proof` | `&[u8]` | 64-byte signature |
 
 **Returns:**
+
 - `true`: Proof is valid
 - `false`: Proof is invalid or verification failed
 
 **Example:**
+
 ```rust
 let keypair = generate_keypair();
 let message = b"challenge data";
@@ -427,6 +436,7 @@ pub fn new(
 **Returns:** New Session instance
 
 **Example:**
+
 ```rust
 let seed = [0u8; 32];
 let tau = [0u8; 32];
@@ -490,6 +500,7 @@ pub fn is_paused(&self) -> bool
 ```
 
 **Returns:**
+
 - `true`: Session is paused
 - `false`: Session is running
 
@@ -511,6 +522,7 @@ pub fn run_batch(&mut self, max_steps: u64) -> BatchResult
 **Returns:** BatchResult enum
 
 **Example:**
+
 ```rust
 let mut session = Session::new(&seed, 1000000, 1000, &tau, 100000);
 
@@ -555,6 +567,7 @@ pub fn verify_winner(&self, step: u64, proof: &[u8]) -> bool
 | `proof` | `&[u8]` | VRF proof |
 
 **Returns:**
+
 - `true`: Proof is valid
 - `false`: Proof is invalid
 
@@ -635,6 +648,7 @@ pub fn handle_error(&mut self, error: VtpError) -> bool
 | `error` | `VtpError` | Error to handle |
 
 **Returns:**
+
 - `true`: Can continue (not exceeded max retries)
 - `false`: Should stop (exceeded max retries)
 
@@ -659,6 +673,7 @@ pub fn can_retry(&self) -> bool
 ```
 
 **Returns:**
+
 - `true`: Can retry
 - `false`: Max retries reached
 
@@ -703,6 +718,7 @@ pub fn bytes_to_hex(bytes: &[u8]) -> String
 **Returns:** Hex string (lowercase)
 
 **Example:**
+
 ```rust
 let bytes = vec![0x00, 0x0f, 0xff];
 let hex = bytes_to_hex(&bytes);
@@ -726,10 +742,12 @@ pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, JsValue>
 | `hex` | `&str` | Hex string |
 
 **Returns:**
+
 - `Ok(Vec<u8>)`: Converted bytes
 - `Err(JsValue)`: Conversion error
 
 **Errors:**
+
 - Odd length string
 - Non-hex characters
 
@@ -768,15 +786,16 @@ Start VDF computation.
 ```typescript
 interface StartMessage {
   type: 'start';
-  seed: Uint8Array;      // 32-byte seed
-  total: number;         // Total steps
-  k: number;             // VRF sampling interval
-  tau: Uint8Array;       // 32-byte threshold
-  checkpointInterval: number;  // Checkpoint interval
+  seed: Uint8Array; // 32-byte seed
+  total: number; // Total steps
+  k: number; // VRF sampling interval
+  tau: Uint8Array; // 32-byte threshold
+  checkpointInterval: number; // Checkpoint interval
 }
 ```
 
 **Example:**
+
 ```typescript
 worker.postMessage({
   type: 'start',
@@ -801,6 +820,7 @@ interface PauseMessage {
 ```
 
 **Example:**
+
 ```typescript
 worker.postMessage({ type: 'pause' });
 ```
@@ -818,6 +838,7 @@ interface ResumeMessage {
 ```
 
 **Example:**
+
 ```typescript
 worker.postMessage({ type: 'resume' });
 ```
@@ -835,6 +856,7 @@ interface StopMessage {
 ```
 
 **Example:**
+
 ```typescript
 worker.postMessage({ type: 'stop' });
 ```
@@ -850,7 +872,7 @@ Computation started successfully.
 ```typescript
 interface StartedMessage {
   type: 'started';
-  publicKey: Uint8Array;  // Node's VRF public key
+  publicKey: Uint8Array; // Node's VRF public key
 }
 ```
 
@@ -863,9 +885,9 @@ Progress update (sent every second).
 ```typescript
 interface ProgressMessage {
   type: 'progress';
-  step: number;          // Current step
-  speed: number;         // Steps per second
-  memoryUsage: number;   // Memory usage in bytes
+  step: number; // Current step
+  speed: number; // Steps per second
+  memoryUsage: number; // Memory usage in bytes
 }
 ```
 
@@ -878,8 +900,8 @@ VRF winner found.
 ```typescript
 interface WinnerMessage {
   type: 'winner';
-  step: number;          // Winner step
-  proof: Uint8Array;     // VRF proof
+  step: number; // Winner step
+  proof: Uint8Array; // VRF proof
 }
 ```
 
@@ -892,7 +914,7 @@ Computation finished.
 ```typescript
 interface FinishedMessage {
   type: 'finished';
-  step: number;          // Final step
+  step: number; // Final step
 }
 ```
 
@@ -905,8 +927,8 @@ Keep-alive signal (sent every 10 seconds).
 ```typescript
 interface HeartbeatMessage {
   type: 'heartbeat';
-  timestamp: number;     // Unix timestamp (ms)
-  status: string;        // 'running' | 'paused'
+  timestamp: number; // Unix timestamp (ms)
+  status: string; // 'running' | 'paused'
 }
 ```
 
@@ -919,9 +941,9 @@ Error occurred.
 ```typescript
 interface ErrorMessage {
   type: 'error';
-  code: string;          // Error code
-  message: string;       // Error description
-  recoverable: boolean;  // Whether error is recoverable
+  code: string; // Error code
+  message: string; // Error description
+  recoverable: boolean; // Whether error is recoverable
 }
 ```
 
@@ -932,12 +954,12 @@ interface ErrorMessage {
 ```typescript
 type WorkerMessage = StartMessage | PauseMessage | ResumeMessage | StopMessage;
 
-type WorkerResponse = 
-  | StartedMessage 
-  | ProgressMessage 
-  | WinnerMessage 
-  | FinishedMessage 
-  | HeartbeatMessage 
+type WorkerResponse =
+  | StartedMessage
+  | ProgressMessage
+  | WinnerMessage
+  | FinishedMessage
+  | HeartbeatMessage
   | ErrorMessage;
 ```
 
@@ -953,7 +975,7 @@ Reactive store for worker state.
 import { workerState } from '$stores/worker';
 
 // Subscribe to changes
-workerState.subscribe(state => {
+workerState.subscribe((state) => {
   console.log('Is running:', state.isRunning);
   console.log('Current step:', state.currentStep);
 });
@@ -963,16 +985,16 @@ workerState.subscribe(state => {
 
 ```typescript
 interface WorkerState {
-  isRunning: boolean;        // Whether computation is running
-  isPaused: boolean;         // Whether computation is paused
-  currentStep: number;       // Current VDF step
-  totalSteps: number;        // Total steps target
-  speed: number;             // Current speed (steps/sec)
-  uptime: number;            // Uptime in seconds
-  winnerCount: number;       // Number of winners found
-  luckPercentage: number;    // Luck percentage
-  publicKey: Uint8Array | null;  // Node's public key
-  nodeId: string;            // Node identifier
+  isRunning: boolean; // Whether computation is running
+  isPaused: boolean; // Whether computation is paused
+  currentStep: number; // Current VDF step
+  totalSteps: number; // Total steps target
+  speed: number; // Current speed (steps/sec)
+  uptime: number; // Uptime in seconds
+  winnerCount: number; // Number of winners found
+  luckPercentage: number; // Luck percentage
+  publicKey: Uint8Array | null; // Node's public key
+  nodeId: string; // Node identifier
 }
 ```
 
@@ -986,7 +1008,7 @@ Store for event log.
 import { events } from '$stores/worker';
 
 // Subscribe to events
-events.subscribe(eventList => {
+events.subscribe((eventList) => {
   console.log('Events:', eventList);
 });
 ```
@@ -996,8 +1018,8 @@ events.subscribe(eventList => {
 ```typescript
 interface VtpEvent {
   type: 'info' | 'checkpoint' | 'winner' | 'error';
-  timestamp: number;  // Unix timestamp (ms)
-  message: string;    // Event message
+  timestamp: number; // Unix timestamp (ms)
+  message: string; // Event message
 }
 ```
 
@@ -1011,7 +1033,7 @@ Derived store for progress percentage.
 import { progress } from '$stores/worker';
 
 // Subscribe to progress
-progress.subscribe(value => {
+progress.subscribe((value) => {
   console.log('Progress:', (value * 100).toFixed(1) + '%');
 });
 ```
@@ -1027,7 +1049,7 @@ progress.subscribe(value => {
 Add event to event log.
 
 ```typescript
-function addEvent(event: Omit<VtpEvent, 'timestamp'>): void
+function addEvent(event: Omit<VtpEvent, 'timestamp'>): void;
 ```
 
 **Parameters:**
@@ -1036,6 +1058,7 @@ function addEvent(event: Omit<VtpEvent, 'timestamp'>): void
 | `event` | `Omit<VtpEvent, 'timestamp'>` | Event without timestamp |
 
 **Example:**
+
 ```typescript
 addEvent({ type: 'info', message: 'Computation started' });
 addEvent({ type: 'winner', message: '🎉 Winner at step 12345' });
@@ -1048,10 +1071,11 @@ addEvent({ type: 'winner', message: '🎉 Winner at step 12345' });
 Reset worker state to initial values.
 
 ```typescript
-function resetWorkerState(): void
+function resetWorkerState(): void;
 ```
 
 **Example:**
+
 ```typescript
 resetWorkerState();
 ```
@@ -1067,14 +1091,15 @@ resetWorkerState();
 Format bytes to human-readable string.
 
 ```typescript
-function formatBytes(bytes: number): string
+function formatBytes(bytes: number): string;
 ```
 
 **Example:**
+
 ```typescript
-formatBytes(0)      // "0 B"
-formatBytes(1024)   // "1 KB"
-formatBytes(1048576) // "1 MB"
+formatBytes(0); // "0 B"
+formatBytes(1024); // "1 KB"
+formatBytes(1048576); // "1 MB"
 ```
 
 ---
@@ -1084,12 +1109,13 @@ formatBytes(1048576) // "1 MB"
 Format number with locale-specific separators.
 
 ```typescript
-function formatNumber(num: number): string
+function formatNumber(num: number): string;
 ```
 
 **Example:**
+
 ```typescript
-formatNumber(1234567) // "1,234,567"
+formatNumber(1234567); // "1,234,567"
 ```
 
 ---
@@ -1099,14 +1125,15 @@ formatNumber(1234567) // "1,234,567"
 Format speed value.
 
 ```typescript
-function formatSpeed(speed: number): string
+function formatSpeed(speed: number): string;
 ```
 
 **Example:**
+
 ```typescript
-formatSpeed(1500000) // "1.5M"
-formatSpeed(1500)    // "1.5K"
-formatSpeed(500)     // "500"
+formatSpeed(1500000); // "1.5M"
+formatSpeed(1500); // "1.5K"
+formatSpeed(500); // "500"
 ```
 
 ---
@@ -1116,14 +1143,15 @@ formatSpeed(500)     // "500"
 Format seconds to HH:MM:SS.
 
 ```typescript
-function formatTime(seconds: number): string
+function formatTime(seconds: number): string;
 ```
 
 **Example:**
+
 ```typescript
-formatTime(0)    // "00:00:00"
-formatTime(61)   // "00:01:01"
-formatTime(3661) // "01:01:01"
+formatTime(0); // "00:00:00"
+formatTime(61); // "00:01:01"
+formatTime(3661); // "01:01:01"
 ```
 
 ---
@@ -1135,12 +1163,13 @@ formatTime(3661) // "01:01:01"
 Generate 8-character hex node ID.
 
 ```typescript
-function generateNodeId(): string
+function generateNodeId(): string;
 ```
 
 **Example:**
+
 ```typescript
-generateNodeId() // "a1b2c3d4"
+generateNodeId(); // "a1b2c3d4"
 ```
 
 **Note:** Uses Math.random(), not cryptographically secure
@@ -1154,10 +1183,11 @@ generateNodeId() // "a1b2c3d4"
 Async sleep function.
 
 ```typescript
-function sleep(ms: number): Promise<void>
+function sleep(ms: number): Promise<void>;
 ```
 
 **Example:**
+
 ```typescript
 async function example() {
   console.log('Start');
@@ -1176,10 +1206,11 @@ Create debounced function.
 function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
-): (...args: Parameters<T>) => void
+): (...args: Parameters<T>) => void;
 ```
 
 **Example:**
+
 ```typescript
 const debouncedSearch = debounce((query: string) => {
   console.log('Searching:', query);
@@ -1264,13 +1295,13 @@ type WorkerResponse =
 
 ## Error Codes
 
-| Code | Description | Recoverable |
-|------|-------------|-------------|
-| `UNKNOWN_COMMAND` | Unknown command received | No |
-| `INVALID_PARAMS` | Missing or invalid parameters | No |
-| `INIT_FAILED` | Session initialization failed | Yes |
-| `COMPUTATION_ERROR` | Error during computation | Yes |
-| `VDF_ERROR` | VDF computation error | Yes |
+| Code                | Description                   | Recoverable |
+| ------------------- | ----------------------------- | ----------- |
+| `UNKNOWN_COMMAND`   | Unknown command received      | No          |
+| `INVALID_PARAMS`    | Missing or invalid parameters | No          |
+| `INIT_FAILED`       | Session initialization failed | Yes         |
+| `COMPUTATION_ERROR` | Error during computation      | Yes         |
+| `VDF_ERROR`         | VDF computation error         | Yes         |
 
 ---
 
@@ -1332,19 +1363,19 @@ setTimeout(() => {
 ```svelte
 <script lang="ts">
   import { workerState, events, addEvent, resetWorkerState } from '$stores/worker';
-  
+
   // Subscribe to state changes
   $: {
     if ($workerState.isRunning) {
       console.log('Running at speed:', $workerState.speed);
     }
   }
-  
+
   // Add event
   function handleWinner() {
     addEvent({ type: 'winner', message: '🎉 Winner found!' });
   }
-  
+
   // Reset state
   function handleReset() {
     resetWorkerState();
@@ -1354,7 +1385,7 @@ setTimeout(() => {
 <div>
   <p>Speed: {$workerState.speed} steps/sec</p>
   <p>Progress: {$workerState.currentStep} / {$workerState.totalSteps}</p>
-  
+
   {#each $events as event}
     <p>{event.message}</p>
   {/each}
@@ -1366,6 +1397,7 @@ setTimeout(() => {
 ## Support
 
 For API questions or issues:
+
 - **GitHub Issues**: [Create an issue](https://github.com/your-org/vtp-node/issues)
 - **Email**: api@vtp-node.dev
 

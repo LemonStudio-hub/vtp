@@ -121,6 +121,7 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 ### Layer Descriptions
 
 #### Presentation Layer
+
 - **Dashboard Component**: Main UI container
 - **Stats Panel**: Real-time statistics display
 - **Event Log**: Event history display
@@ -128,11 +129,13 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 - **VDF Canvas**: Progress visualization
 
 #### Communication Layer
+
 - **postMessage API**: Thread-safe communication
 - **Message Protocol**: Typed message format
 - **Serialization**: Efficient binary transfer
 
 #### Computation Layer
+
 - **Web Worker**: Background thread
 - **vtp-core (Wasm)**: Cryptographic operations
 - **Scheduler**: Time-sliced execution
@@ -140,22 +143,23 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 - **Error Handler**: Error recovery
 
 #### Storage Layer
+
 - **IndexedDB**: Checkpoint storage
 - **Cache Storage**: PWA caching
 - **Local Storage**: User preferences
 
 ### Technology Stack
 
-| Layer | Technology | Purpose |
-|-------|------------|---------|
-| **Frontend** | Svelte 4 | Reactive UI framework |
-| **Build Tool** | Vite 5 | Fast development and build |
-| **Language** | TypeScript 5 | Type-safe JavaScript |
-| **Core Library** | Rust + wasm-pack | High-performance Wasm |
-| **Crypto** | SHA256 + ED25519 | VDF and VRF operations |
-| **Styling** | CSS | Component styling |
-| **Storage** | IndexedDB | Checkpoint persistence |
-| **PWA** | Workbox | Service worker caching |
+| Layer            | Technology       | Purpose                    |
+| ---------------- | ---------------- | -------------------------- |
+| **Frontend**     | Svelte 4         | Reactive UI framework      |
+| **Build Tool**   | Vite 5           | Fast development and build |
+| **Language**     | TypeScript 5     | Type-safe JavaScript       |
+| **Core Library** | Rust + wasm-pack | High-performance Wasm      |
+| **Crypto**       | SHA256 + ED25519 | VDF and VRF operations     |
+| **Styling**      | CSS              | Component styling          |
+| **Storage**      | IndexedDB        | Checkpoint persistence     |
+| **PWA**          | Workbox          | Service worker caching     |
 
 ---
 
@@ -277,14 +281,14 @@ The Web Worker manages the computation lifecycle and communicates with the main 
 
 ```typescript
 async function runMainLoop() {
-  const TIME_SLICE_MS = 50;  // 50ms per slice
-  
+  const TIME_SLICE_MS = 50; // 50ms per slice
+
   while (isRunning) {
     const start = performance.now();
-    
+
     // Execute batch
     const result = session.run_batch(1000);
-    
+
     // Check time
     const elapsed = performance.now() - start;
     if (elapsed < TIME_SLICE_MS) {
@@ -345,7 +349,7 @@ workerStore          // Worker instance
 ```svelte
 <script>
   import { workerState } from '$stores/worker';
-  
+
   // Reactive declaration
   $: progress = $workerState.currentStep / $workerState.totalSteps;
   $: formattedSpeed = formatSpeed($workerState.speed);
@@ -371,25 +375,19 @@ const strategies = {
   // Static assets: Cache-first
   static: new CacheFirst({
     cacheName: 'static-v1',
-    plugins: [
-      new ExpirationPlugin({ maxAgeSeconds: 30 * 24 * 60 * 60 })
-    ]
+    plugins: [new ExpirationPlugin({ maxAgeSeconds: 30 * 24 * 60 * 60 })]
   }),
-  
+
   // API calls: Network-first
   api: new NetworkFirst({
     cacheName: 'api-v1',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 50 })
-    ]
+    plugins: [new ExpirationPlugin({ maxEntries: 50 })]
   }),
-  
+
   // Images: Cache-first with expiration
   images: new CacheFirst({
     cacheName: 'images-v1',
-    plugins: [
-      new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 })
-    ]
+    plugins: [new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 })]
   })
 };
 ```
@@ -473,7 +471,7 @@ Worker                    IndexedDB                 Main Thread
 ```typescript
 // All messages use this base structure
 interface Message {
-  type: string;      // Message type identifier
+  type: string; // Message type identifier
   timestamp?: number; // Optional timestamp
 }
 ```
@@ -482,10 +480,13 @@ interface Message {
 
 ```typescript
 // Use Transferable for large data
-worker.postMessage({
-  type: 'data',
-  buffer: largeArrayBuffer
-}, [largeArrayBuffer]);  // Transfer ownership
+worker.postMessage(
+  {
+    type: 'data',
+    buffer: largeArrayBuffer
+  },
+  [largeArrayBuffer]
+); // Transfer ownership
 ```
 
 #### Error Handling
@@ -528,11 +529,11 @@ const BATCH_SIZE = 1000;
 
 function runBatch() {
   const start = performance.now();
-  
+
   for (let i = 0; i < BATCH_SIZE; i++) {
     vdfStep();
   }
-  
+
   const elapsed = performance.now() - start;
   const stepsPerSecond = BATCH_SIZE / (elapsed / 1000);
 }
@@ -547,10 +548,10 @@ const TIME_SLICE_MS = 50;
 async function runWithTimeSlice() {
   while (isRunning) {
     const start = performance.now();
-    
+
     // Execute batch
     executeBatch();
-    
+
     // Yield if needed
     const elapsed = performance.now() - start;
     if (elapsed < TIME_SLICE_MS) {
@@ -731,12 +732,12 @@ const features = {
 
 ### Browser-Specific Considerations
 
-| Browser | Considerations |
-|---------|----------------|
-| Chrome | Full support, best performance |
-| Firefox | No `performance.memory` |
-| Safari | AudioContext limitations |
-| Mobile | Background execution limits |
+| Browser | Considerations                 |
+| ------- | ------------------------------ |
+| Chrome  | Full support, best performance |
+| Firefox | No `performance.memory`        |
+| Safari  | AudioContext limitations       |
+| Mobile  | Background execution limits    |
 
 ---
 
@@ -768,6 +769,7 @@ const features = {
 ## Support
 
 For architecture questions or discussions:
+
 - **GitHub Discussions**: [Join the discussion](https://github.com/your-org/vtp-node/discussions)
 - **Email**: architecture@vtp-node.dev
 

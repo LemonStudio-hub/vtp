@@ -179,16 +179,11 @@
    * @param y - 中心 Y 坐标
    * @param progress - 进度值，范围 [0, 1]
    */
-  function drawProgressRing(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    progress: number
-  ) {
+  function drawProgressRing(ctx: CanvasRenderingContext2D, x: number, y: number, progress: number) {
     const radius = 120;
     const lineWidth = 8;
     const startAngle = -Math.PI / 2; // 从顶部开始
-    const endAngle = startAngle + (2 * Math.PI * progress);
+    const endAngle = startAngle + 2 * Math.PI * progress;
 
     // 绘制背景环（灰色）
     ctx.beginPath();

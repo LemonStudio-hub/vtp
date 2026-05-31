@@ -77,21 +77,21 @@ npm run dev
 
 #### Required Software
 
-| Software | Version | Installation |
-|----------|---------|--------------|
-| **Rust** | 1.70+ | [rustup.rs](https://rustup.rs/) |
-| **Node.js** | 18+ | [nodejs.org](https://nodejs.org/) |
-| **npm** | 9+ | Comes with Node.js |
-| **wasm-pack** | 0.12+ | `cargo install wasm-pack` |
-| **Git** | 2.30+ | [git-scm.com](https://git-scm.com/) |
+| Software      | Version | Installation                        |
+| ------------- | ------- | ----------------------------------- |
+| **Rust**      | 1.70+   | [rustup.rs](https://rustup.rs/)     |
+| **Node.js**   | 18+     | [nodejs.org](https://nodejs.org/)   |
+| **npm**       | 9+      | Comes with Node.js                  |
+| **wasm-pack** | 0.12+   | `cargo install wasm-pack`           |
+| **Git**       | 2.30+   | [git-scm.com](https://git-scm.com/) |
 
 #### Optional Software
 
-| Software | Purpose | Installation |
-|----------|---------|--------------|
-| **cargo-watch** | Auto-rebuild on changes | `cargo install cargo-watch` |
-| **cargo-tarpaulin** | Code coverage | `cargo install cargo-tarpaulin` |
-| **pnpm** | Faster package manager | `npm install -g pnpm` |
+| Software            | Purpose                 | Installation                    |
+| ------------------- | ----------------------- | ------------------------------- |
+| **cargo-watch**     | Auto-rebuild on changes | `cargo install cargo-watch`     |
+| **cargo-tarpaulin** | Code coverage           | `cargo install cargo-tarpaulin` |
+| **pnpm**            | Faster package manager  | `npm install -g pnpm`           |
 
 ### Installation
 
@@ -194,6 +194,7 @@ npm run dev
 The server will start at `http://localhost:5173`.
 
 **Features:**
+
 - Hot Module Replacement (HMR)
 - Error overlay
 - Source maps
@@ -273,6 +274,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 **Types:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation
@@ -282,6 +284,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - `chore`: Maintenance
 
 **Examples:**
+
 ```
 feat(vdf): add SIMD optimization for SHA256
 fix(worker): handle memory limit exceeded
@@ -507,21 +510,21 @@ function getProgress(current: number, total: number): number {
 <script lang="ts">
   // 1. Imports
   import { onMount } from 'svelte';
-  
+
   // 2. Props
   export let title: string;
-  
+
   // 3. State
   let count = 0;
-  
+
   // 4. Reactive declarations
   $: doubled = count * 2;
-  
+
   // 5. Lifecycle
   onMount(() => {
     console.log('Component mounted');
   });
-  
+
   // 6. Functions
   function increment() {
     count += 1;
@@ -557,17 +560,17 @@ function getProgress(current: number, total: number): number {
 
 #### Types
 
-| Type | Description |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation |
-| `style` | Formatting (no code change) |
-| `refactor` | Code refactoring |
-| `perf` | Performance improvement |
-| `test` | Adding tests |
-| `chore` | Maintenance |
-| `ci` | CI/CD changes |
+| Type       | Description                 |
+| ---------- | --------------------------- |
+| `feat`     | New feature                 |
+| `fix`      | Bug fix                     |
+| `docs`     | Documentation               |
+| `style`    | Formatting (no code change) |
+| `refactor` | Code refactoring            |
+| `perf`     | Performance improvement     |
+| `test`     | Adding tests                |
+| `chore`    | Maintenance                 |
+| `ci`       | CI/CD changes               |
 
 #### Examples
 
@@ -641,6 +644,7 @@ wasm-pack build --target web --out-dir ../../../static/wasm --dev
 #### Svelte DevTools
 
 Install the Svelte DevTools browser extension:
+
 - [Chrome](https://chrome.google.com/webstore/detail/svelte-devtools/)
 - [Firefox](https://addons.mozilla.org/en-US/firefox/addon/svelte-devtools/)
 
@@ -819,7 +823,7 @@ export const newStore = writable<NewState>({
 });
 
 export function updateValue(newValue: number) {
-  newStore.update(state => ({
+  newStore.update((state) => ({
     ...state,
     value: newValue
   }));
@@ -848,6 +852,7 @@ export function updateValue(newValue: number) {
 **Error**: `wasm-pack build` fails
 
 **Solution**:
+
 ```bash
 # Clean and rebuild
 cd src/lib/vtp-core
@@ -860,6 +865,7 @@ wasm-pack build --target web --out-dir ../../../static/wasm
 **Error**: Type errors after Wasm rebuild
 
 **Solution**:
+
 ```bash
 # Regenerate types
 npm run wasm:build
@@ -871,6 +877,7 @@ npm run check
 **Error**: Worker fails to load
 
 **Solution**:
+
 ```bash
 # Rebuild worker
 npm run worker:build
@@ -883,6 +890,7 @@ npm run worker:build
 **Error**: Memory usage grows over time
 
 **Solution**:
+
 1. Check for unclosed resources
 2. Verify event listeners are removed
 3. Use Chrome Memory profiler
@@ -893,6 +901,7 @@ npm run worker:build
 **Error**: Application is slow
 
 **Solution**:
+
 1. Check batch size settings
 2. Verify time-slice configuration
 3. Profile with Chrome DevTools
@@ -910,6 +919,7 @@ npm run worker:build
 ## Support
 
 For development questions:
+
 - **GitHub Discussions**: [Join the discussion](https://github.com/your-org/vtp-node/discussions)
 - **Email**: dev@vtp-node.dev
 

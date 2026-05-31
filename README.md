@@ -63,24 +63,24 @@ VTP Node is a single-node prototype implementation of the **Verifiable Time Proo
 
 ### Core Features
 
-| Feature | Description | Status |
-|---------|-------------|--------|
-| **VDF Engine** | Sequential SHA256 iteration compiled to WebAssembly | ✅ Complete |
-| **VRF Implementation** | ECVRF-ED25519 proof generation and verification | ✅ Complete |
-| **Web Worker** | Background computation with time-slicing | ✅ Complete |
-| **Real-time Dashboard** | Live progress visualization with Canvas 2D | ✅ Complete |
-| **PWA Support** | Installable Progressive Web App | ✅ Complete |
-| **Checkpoint System** | Automatic persistence with IndexedDB | ✅ Complete |
-| **Adaptive Scheduling** | AudioContext-based background execution | ✅ Complete |
+| Feature                 | Description                                         | Status      |
+| ----------------------- | --------------------------------------------------- | ----------- |
+| **VDF Engine**          | Sequential SHA256 iteration compiled to WebAssembly | ✅ Complete |
+| **VRF Implementation**  | ECVRF-ED25519 proof generation and verification     | ✅ Complete |
+| **Web Worker**          | Background computation with time-slicing            | ✅ Complete |
+| **Real-time Dashboard** | Live progress visualization with Canvas 2D          | ✅ Complete |
+| **PWA Support**         | Installable Progressive Web App                     | ✅ Complete |
+| **Checkpoint System**   | Automatic persistence with IndexedDB                | ✅ Complete |
+| **Adaptive Scheduling** | AudioContext-based background execution             | ✅ Complete |
 
 ### Performance Targets
 
-| Metric | Target | Description |
-|--------|--------|-------------|
-| VDF Speed | ≥ 2M steps/sec | Sequential SHA256 iterations |
-| VRF Latency | ≤ 1ms | Proof generation time |
-| Background Retention | ≥ 50% | Speed when tab is in background |
-| Memory Stability | < 10MB growth | Over 30 minutes of operation |
+| Metric               | Target         | Description                     |
+| -------------------- | -------------- | ------------------------------- |
+| VDF Speed            | ≥ 2M steps/sec | Sequential SHA256 iterations    |
+| VRF Latency          | ≤ 1ms          | Proof generation time           |
+| Background Retention | ≥ 50%          | Speed when tab is in background |
+| Memory Stability     | < 10MB growth  | Over 30 minutes of operation    |
 
 ---
 
@@ -175,6 +175,7 @@ npm run dev
 ### Access the Application
 
 Open your browser and navigate to:
+
 ```
 http://localhost:5173
 ```
@@ -276,6 +277,7 @@ npm run build
 ```
 
 This will:
+
 1. Build the Rust/Wasm library
 2. Build the Worker
 3. Build the Svelte application
@@ -487,39 +489,39 @@ impl Session {
 
 #### Messages (Main Thread → Worker)
 
-| Type | Description | Parameters |
-|------|-------------|------------|
-| `start` | Start VDF computation | `seed`, `total`, `k`, `tau`, `checkpointInterval` |
-| `pause` | Pause computation | - |
-| `resume` | Resume computation | - |
-| `stop` | Stop computation | - |
+| Type     | Description           | Parameters                                        |
+| -------- | --------------------- | ------------------------------------------------- |
+| `start`  | Start VDF computation | `seed`, `total`, `k`, `tau`, `checkpointInterval` |
+| `pause`  | Pause computation     | -                                                 |
+| `resume` | Resume computation    | -                                                 |
+| `stop`   | Stop computation      | -                                                 |
 
 #### Messages (Worker → Main Thread)
 
-| Type | Description | Data |
-|------|-------------|------|
-| `started` | Computation started | `publicKey` |
-| `progress` | Progress update | `step`, `speed`, `memoryUsage` |
-| `winner` | VRF winner found | `step`, `proof` |
-| `finished` | Computation finished | `step` |
-| `heartbeat` | Keep-alive signal | `timestamp`, `status` |
-| `error` | Error occurred | `code`, `message`, `recoverable` |
+| Type        | Description          | Data                             |
+| ----------- | -------------------- | -------------------------------- |
+| `started`   | Computation started  | `publicKey`                      |
+| `progress`  | Progress update      | `step`, `speed`, `memoryUsage`   |
+| `winner`    | VRF winner found     | `step`, `proof`                  |
+| `finished`  | Computation finished | `step`                           |
+| `heartbeat` | Keep-alive signal    | `timestamp`, `status`            |
+| `error`     | Error occurred       | `code`, `message`, `recoverable` |
 
 ### Svelte Stores
 
 ```typescript
 // Worker state store
-export const workerState: Writable<WorkerState>
+export const workerState: Writable<WorkerState>;
 
 // Events store
-export const events: Writable<VtpEvent[]>
+export const events: Writable<VtpEvent[]>;
 
 // Progress store (derived)
-export const progress: Readable<number>
+export const progress: Readable<number>;
 
 // Functions
-export function addEvent(event: Omit<VtpEvent, 'timestamp'>): void
-export function resetWorkerState(): void
+export function addEvent(event: Omit<VtpEvent, 'timestamp'>): void;
+export function resetWorkerState(): void;
 ```
 
 ---
@@ -631,25 +633,25 @@ Use Chrome DevTools for profiling:
 
 ## Browser Compatibility
 
-| Browser | Version | Status | Notes |
-|---------|---------|--------|-------|
-| Chrome | 90+ | ✅ Full Support | Best performance |
-| Edge | 90+ | ✅ Full Support | Chromium-based |
-| Firefox | 90+ | ✅ Supported | No `performance.memory` |
-| Safari | 15+ | ⚠️ Partial | AudioContext limitations |
-| Mobile Chrome | 90+ | ✅ Supported | Performance varies |
-| Mobile Safari | 15+ | ⚠️ Partial | Background limitations |
+| Browser       | Version | Status          | Notes                    |
+| ------------- | ------- | --------------- | ------------------------ |
+| Chrome        | 90+     | ✅ Full Support | Best performance         |
+| Edge          | 90+     | ✅ Full Support | Chromium-based           |
+| Firefox       | 90+     | ✅ Supported    | No `performance.memory`  |
+| Safari        | 15+     | ⚠️ Partial      | AudioContext limitations |
+| Mobile Chrome | 90+     | ✅ Supported    | Performance varies       |
+| Mobile Safari | 15+     | ⚠️ Partial      | Background limitations   |
 
 ### Feature Support
 
-| Feature | Chrome | Firefox | Safari |
-|---------|--------|---------|--------|
-| WebAssembly | ✅ | ✅ | ✅ |
-| Web Workers | ✅ | ✅ | ✅ |
-| AudioContext | ✅ | ✅ | ⚠️ |
-| IndexedDB | ✅ | ✅ | ✅ |
-| PWA Install | ✅ | ❌ | ❌ |
-| `performance.memory` | ✅ | ❌ | ❌ |
+| Feature              | Chrome | Firefox | Safari |
+| -------------------- | ------ | ------- | ------ |
+| WebAssembly          | ✅     | ✅      | ✅     |
+| Web Workers          | ✅     | ✅      | ✅     |
+| AudioContext         | ✅     | ✅      | ⚠️     |
+| IndexedDB            | ✅     | ✅      | ✅     |
+| PWA Install          | ✅     | ❌      | ❌     |
+| `performance.memory` | ✅     | ❌      | ❌     |
 
 ---
 

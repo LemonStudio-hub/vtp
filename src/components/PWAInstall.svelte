@@ -112,9 +112,7 @@
 
 <!-- 条件渲染安装按钮 -->
 {#if showInstallButton}
-  <button class="install-button" on:click={handleInstall}>
-    📲 安装应用
-  </button>
+  <button class="install-button" on:click={handleInstall}> 📲 安装应用 </button>
 {/if}
 
 <style>

@@ -172,10 +172,7 @@ pub fn verify(public_key: &[u8], message: &[u8], proof: &[u8]) -> bool {
         };
 
     let signature =
-        match ed25519_dalek::Signature::from_bytes(proof.try_into().expect("Invalid proof length"))
-        {
-            sig => sig,
-        };
+        ed25519_dalek::Signature::from_bytes(proof.try_into().expect("Invalid proof length"));
 
     let mut hasher = Sha256::new();
     hasher.update(message);

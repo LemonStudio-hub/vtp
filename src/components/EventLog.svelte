@@ -89,9 +89,7 @@
       </div>
     {:else}
       <!-- 空状态提示 -->
-      <div class="empty-state">
-        暂无事件记录
-      </div>
+      <div class="empty-state">暂无事件记录</div>
     {/each}
   </div>
 </div>
