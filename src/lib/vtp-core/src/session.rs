@@ -164,13 +164,7 @@ impl Session {
     /// # Panics
     /// 如果 seed 或 tau 少于 32 字节，会 panic
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        seed: &[u8],
-        total: u64,
-        k: u64,
-        tau: &[u8],
-        checkpoint_interval: u64,
-    ) -> Self {
+    pub fn new(seed: &[u8], total: u64, k: u64, tau: &[u8], checkpoint_interval: u64) -> Self {
         let vdf = VdfIterator::new(seed, total);
         let keypair = vrf::generate_keypair();
         let error_handler = ErrorHandler::default();
@@ -266,10 +260,7 @@ impl Session {
             let proof = vrf::prove(&self.keypair.secret_key(), &message);
 
             if self.should_trigger_vrf(current_step) {
-                let winner = WinnerResult {
-                    step: current_step,
-                    proof,
-                };
+                let winner = WinnerResult { step: current_step, proof };
                 return BatchResult::Winner(winner);
             }
         }

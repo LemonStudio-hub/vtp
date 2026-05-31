@@ -68,11 +68,7 @@ impl VdfIterator {
         let mut state = [0u8; 32];
         state.copy_from_slice(&seed[..32]);
 
-        Self {
-            state,
-            step: 0,
-            total,
-        }
+        Self { state, step: 0, total }
     }
 
     /// 获取当前已完成的步数

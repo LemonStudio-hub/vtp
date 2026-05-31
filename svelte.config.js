@@ -11,7 +11,12 @@ const config = {
       fallback: 'index.html',
       precompress: false,
       strict: true
-    })
+    }),
+    alias: {
+      '$stores': 'src/stores',
+      '$components': 'src/components',
+      '$utils': 'src/utils'
+    }
   }
 };
 

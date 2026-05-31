@@ -119,7 +119,8 @@ pub fn generate_keypair() -> VrfKeypair {
 /// ```
 #[wasm_bindgen]
 pub fn prove(secret_key: &[u8], message: &[u8]) -> Vec<u8> {
-    let signing_key = SigningKey::from_bytes(secret_key.try_into().expect("Invalid secret key length"));
+    let signing_key =
+        SigningKey::from_bytes(secret_key.try_into().expect("Invalid secret key length"));
 
     let mut hasher = Sha256::new();
     hasher.update(message);
@@ -164,14 +165,17 @@ pub fn prove(secret_key: &[u8], message: &[u8]) -> Vec<u8> {
 /// ```
 #[wasm_bindgen]
 pub fn verify(public_key: &[u8], message: &[u8], proof: &[u8]) -> bool {
-    let verifying_key = match VerifyingKey::from_bytes(public_key.try_into().expect("Invalid public key length")) {
-        Ok(key) => key,
-        Err(_) => return false,
-    };
+    let verifying_key =
+        match VerifyingKey::from_bytes(public_key.try_into().expect("Invalid public key length")) {
+            Ok(key) => key,
+            Err(_) => return false,
+        };
 
-    let signature = match ed25519_dalek::Signature::from_bytes(proof.try_into().expect("Invalid proof length")) {
-        sig => sig,
-    };
+    let signature =
+        match ed25519_dalek::Signature::from_bytes(proof.try_into().expect("Invalid proof length"))
+        {
+            sig => sig,
+        };
 
     let mut hasher = Sha256::new();
     hasher.update(message);

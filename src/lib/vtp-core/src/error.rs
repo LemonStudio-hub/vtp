@@ -128,11 +128,7 @@ pub struct ErrorHandler {
 /// 创建一个最大重试次数为 3 的 ErrorHandler
 impl Default for ErrorHandler {
     fn default() -> Self {
-        Self {
-            last_error: None,
-            error_count: 0,
-            max_retries: 3,
-        }
+        Self { last_error: None, error_count: 0, max_retries: 3 }
     }
 }
 
@@ -145,11 +141,7 @@ impl ErrorHandler {
     /// # 返回值
     /// 返回初始化的 ErrorHandler 实例
     pub fn new(max_retries: u32) -> Self {
-        Self {
-            last_error: None,
-            error_count: 0,
-            max_retries,
-        }
+        Self { last_error: None, error_count: 0, max_retries }
     }
 
     /// 处理错误

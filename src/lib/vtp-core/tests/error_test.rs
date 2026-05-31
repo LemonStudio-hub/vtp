@@ -5,26 +5,11 @@ mod tests {
     #[test]
     fn test_vtp_error_display() {
         assert_eq!(format!("{}", VtpError::InvalidInput), "Invalid input provided");
-        assert_eq!(
-            format!("{}", VtpError::InvalidState),
-            "Invalid state encountered"
-        );
-        assert_eq!(
-            format!("{}", VtpError::ComputationFailed),
-            "Computation failed"
-        );
-        assert_eq!(
-            format!("{}", VtpError::CheckpointFailed),
-            "Checkpoint save/load failed"
-        );
-        assert_eq!(
-            format!("{}", VtpError::SessionFinished),
-            "Session has already finished"
-        );
-        assert_eq!(
-            format!("{}", VtpError::SessionNotStarted),
-            "Session has not started yet"
-        );
+        assert_eq!(format!("{}", VtpError::InvalidState), "Invalid state encountered");
+        assert_eq!(format!("{}", VtpError::ComputationFailed), "Computation failed");
+        assert_eq!(format!("{}", VtpError::CheckpointFailed), "Checkpoint save/load failed");
+        assert_eq!(format!("{}", VtpError::SessionFinished), "Session has already finished");
+        assert_eq!(format!("{}", VtpError::SessionNotStarted), "Session has not started yet");
     }
 
     #[test]
@@ -166,18 +151,9 @@ mod tests {
     fn test_vtp_error_debug() {
         assert_eq!(format!("{:?}", VtpError::InvalidInput), "InvalidInput");
         assert_eq!(format!("{:?}", VtpError::InvalidState), "InvalidState");
-        assert_eq!(
-            format!("{:?}", VtpError::ComputationFailed),
-            "ComputationFailed"
-        );
-        assert_eq!(
-            format!("{:?}", VtpError::CheckpointFailed),
-            "CheckpointFailed"
-        );
+        assert_eq!(format!("{:?}", VtpError::ComputationFailed), "ComputationFailed");
+        assert_eq!(format!("{:?}", VtpError::CheckpointFailed), "CheckpointFailed");
         assert_eq!(format!("{:?}", VtpError::SessionFinished), "SessionFinished");
-        assert_eq!(
-            format!("{:?}", VtpError::SessionNotStarted),
-            "SessionNotStarted"
-        );
+        assert_eq!(format!("{:?}", VtpError::SessionNotStarted), "SessionNotStarted");
     }
 }

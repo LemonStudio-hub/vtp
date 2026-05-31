@@ -21,8 +21,8 @@
  * - 定期内存监控防止泄漏
  */
 
-import { Session } from '../vtp-core/pkg/vtp_core';
-import type { BatchResult } from '../vtp-core/pkg/vtp_core';
+import { Session } from '../vtp-core/types/vtp_core';
+import type { BatchResult } from '../vtp-core/types/vtp_core';
 
 /**
  * Worker 消息接口
@@ -202,7 +202,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
  *
  * @param params - 包含 VDF 配置参数的 WorkerMessage
  */
-async function handleStart(params: WorkerMessage) {
+async function handleStart(params: Omit<WorkerMessage, 'type'>) {
   try {
     const { seed, total, k, tau, checkpointInterval } = params;
 
