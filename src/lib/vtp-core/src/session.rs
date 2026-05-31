@@ -111,14 +111,14 @@ pub struct SessionState {
 ///
 /// let seed = [0u8; 32];
 /// let tau = [0u8; 32];
-/// let mut session = Session::new(&seed, 1000000, 1000, &tau, 100000);
+/// let mut session = Session::new(&seed, 100, 0, &tau, 50);
 ///
 /// loop {
-///     match session.run_batch(1000) {
-///         BatchResult::Progress(step) => println!("Progress: {}", step),
-///         BatchResult::Winner(result) => println!("Winner at step {}", result.step),
+///     match session.run_batch(50) {
+///         BatchResult::Progress(step) => { /* 计算进行中 */ },
+///         BatchResult::Winner(result) => { /* 发现中签 */ },
 ///         BatchResult::Finished => break,
-///         BatchResult::Error(err) => eprintln!("Error: {}", err),
+///         BatchResult::Error(err) => { /* 发生错误 */ },
 ///     }
 /// }
 /// ```
