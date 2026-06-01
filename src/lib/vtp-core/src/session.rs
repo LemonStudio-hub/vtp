@@ -280,6 +280,7 @@ impl Session {
     /// # 返回值
     /// - `true`: 是检查点步骤
     /// - `false`: 不是检查点步骤
+    #[allow(clippy::manual_is_multiple_of)]
     fn is_checkpoint_step(&self, step: u64) -> bool {
         step % self.checkpoint_interval == 0
     }
@@ -292,6 +293,7 @@ impl Session {
     /// # 返回值
     /// - `true`: 应该触发 VRF
     /// - `false`: 不应该触发
+    #[allow(clippy::manual_is_multiple_of)]
     fn should_trigger_vrf(&self, step: u64) -> bool {
         if self.k == 0 {
             return false;
