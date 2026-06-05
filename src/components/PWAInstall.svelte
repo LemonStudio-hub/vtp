@@ -1,23 +1,23 @@
 <!--
-  PWAInstall 组件
+  PWAInstall Component
 
-  提供 PWA 应用安装功能，包括：
-  - 监听浏览器安装提示事件
-  - 显示自定义安装按钮
-  - 处理用户安装选择
+  Provides PWA installation functionality, including:
+  - Listening for browser install prompt events
+  - Displaying a custom install button
+  - Handling the user's installation choice
 
-  功能特点：
-  - 自动检测 PWA 安装条件
-  - 自定义安装提示界面
-  - 处理安装成功/失败事件
-  - 响应式显示/隐藏
+  Features:
+  - Automatic detection of PWA install criteria
+  - Custom install prompt UI
+  - Handling of installation success/failure events
+  - Reactive show/hide behaviour
 
-  浏览器兼容性：
+  Browser compatibility:
   - Chrome 67+
   - Edge 79+
-  - Firefox 不支持（需要手动添加到主屏幕）
+  - Firefox not supported (must be manually added to home screen)
 
-  使用示例：
+  Usage example:
   ```svelte
   <PWAInstall />
   ```
@@ -27,116 +27,146 @@
   import { onMount } from 'svelte';
 
   /**
-   * 延迟的安装提示事件
+   * Deferred install prompt event
    *
-   * 浏览器在满足 PWA 安装条件时触发 beforeinstallprompt 事件。
-   * 我们阻止默认行为并保存事件引用，以便后续调用。
+   * The browser fires the beforeinstallprompt event when the PWA
+   * meets the installation criteria. We prevent the default behaviour
+   * and store the event reference for later invocation.
    */
   let deferredPrompt: any = null;
 
   /**
-   * 是否显示安装按钮
+   * Whether to show the install button
    *
-   * 当 deferredPrompt 可用时显示安装按钮
+   * The install button is shown when deferredPrompt is available
    */
   let showInstallButton = false;
 
   /**
-   * 组件挂载时注册事件监听器
+   * Register event listeners when the component mounts
    *
-   * 监听两个关键事件：
-   * 1. beforeinstallprompt: 浏览器准备显示安装提示
-   * 2. appinstalled: 应用安装成功
+   * Listens for two key events:
+   * 1. beforeinstallprompt: the browser is ready to show the install prompt
+   * 2. appinstalled: the application was installed successfully
    */
   onMount(() => {
     /**
-     * 监听 beforeinstallprompt 事件
+     * Listen for the beforeinstallprompt event
      *
-     * 当浏览器检测到 PWA 满足安装条件时触发。
-     * 我们阻止默认的安装提示，改为显示自定义按钮。
+     * Fired when the browser detects that the PWA meets the install criteria.
+     * We suppress the default install prompt and show a custom button instead.
      */
     window.addEventListener('beforeinstallprompt', (e) => {
-      // 阻止默认的安装提示
+      // Suppress the default install prompt
       e.preventDefault();
 
-      // 保存事件引用，用于后续调用
+      // Store the event reference for later use
       deferredPrompt = e;
 
-      // 显示自定义安装按钮
+      // Show the custom install button
       showInstallButton = true;
     });
 
     /**
-     * 监听 appinstalled 事件
+     * Listen for the appinstalled event
      *
-     * 当 PWA 安装成功时触发。
-     * 清理状态并隐藏安装按钮。
+     * Fired when the PWA has been installed successfully.
+     * Resets the state and hides the install button.
      */
     window.addEventListener('appinstalled', () => {
-      // 隐藏安装按钮
+      // Hide the install button
       showInstallButton = false;
 
-      // 清理事件引用
+      // Clean up the event reference
       deferredPrompt = null;
     });
   });
 
   /**
-   * 处理安装按钮点击
+   * Handle the install button click
    *
-   * 调用浏览器的安装提示，让用户选择是否安装。
+   * Triggers the browser's install prompt so the user can choose
+   * whether to install the application.
    *
-   * 工作流程：
-   * 1. 检查是否有可用的安装提示
-   * 2. 显示浏览器的安装对话框
-   * 3. 根据用户选择更新状态
+   * Workflow:
+   * 1. Check whether an install prompt is available
+   * 2. Show the browser's installation dialog
+   * 3. Update the state based on the user's choice
    */
   async function handleInstall() {
     if (!deferredPrompt) return;
 
-    // 显示浏览器的安装对话框
+    // Show the browser's installation dialog
     deferredPrompt.prompt();
 
-    // 等待用户选择
+    // Wait for the user's choice
     const { outcome } = await deferredPrompt.userChoice;
 
-    // 根据用户选择更新状态
+    // Update state based on the user's choice
     if (outcome === 'accepted') {
       showInstallButton = false;
     }
 
-    // 清理事件引用
+    // Clean up the event reference
     deferredPrompt = null;
   }
 </script>
 
-<!-- 条件渲染安装按钮 -->
+<!-- Conditionally render the install button -->
 {#if showInstallButton}
-  <button class="install-button" on:click={handleInstall}> 📲 安装应用 </button>
+  <button class="install-button" on:click={handleInstall}>
+    <span class="install-icon">📲</span>
+    <span class="install-text">Install App</span>
+  </button>
 {/if}
 
 <style>
-  /* 安装按钮样式 */
+  /* Install button styles */
   .install-button {
-    padding: 0.75rem 1.5rem;
-    background: #00ff88;
-    color: #1a1a2e;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    color: #0a0a1a;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: bold;
+    border-radius: 12px;
+    font-size: 0.9375rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+    animation: slideUp 0.5s ease forwards;
   }
 
-  /* 按钮悬停效果 */
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Button hover effect */
   .install-button:hover {
-    background: #00cc6a;
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 255, 136, 0.4);
   }
 
-  /* 按钮点击效果 */
+  /* Button active/press effect */
   .install-button:active {
-    transform: translateY(0);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+  }
+
+  .install-icon {
+    font-size: 1.125rem;
+  }
+
+  .install-text {
+    letter-spacing: 0.02em;
   }
 </style>

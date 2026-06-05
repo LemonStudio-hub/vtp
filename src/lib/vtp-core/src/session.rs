@@ -1,20 +1,20 @@
-//! 会话状态机模块
+//! Session State Machine Module
 //!
-//! 管理 VDF 挑战的完整生命周期，包括：
-//! - VDF 计算迭代
-//! - VRF 抽签检查
-//! - 检查点管理
-//! - 错误处理
+//! Manages the complete lifecycle of a VDF challenge, including:
+//! - VDF computation iteration
+//! - VRF lottery checking
+//! - Checkpoint management
+//! - Error handling
 //!
-//! # 设计思路
-//! Session 结构体封装了一次完整的 VDF 挑战。它协调 VDF 迭代器和
-//! VRF 证明生成，在适当的时机进行抽签检查。
+//! # Design
+//! The `Session` struct encapsulates a complete VDF challenge. It coordinates the VDF iterator
+//! and VRF proof generation, performing lottery checks at the appropriate intervals.
 //!
-//! # 工作流程
-//! 1. 创建 Session，初始化 VDF 迭代器和 VRF 密钥对
-//! 2. 调用 `run_batch` 执行批量 VDF 计算
-//! 3. 在检查点步骤自动进行 VRF 抽签
-//! 4. 根据返回的 BatchResult 处理不同情况
+//! # Workflow
+//! 1. Create a `Session`, initializing the VDF iterator and VRF keypair
+//! 2. Call `run_batch` to perform batch VDF computation
+//! 3. Automatically perform VRF lottery at checkpoint steps
+//! 4. Handle different outcomes based on the returned `BatchResult`
 
 use crate::error::{ErrorHandler, VtpError};
 use crate::vdf::VdfIterator;
@@ -22,90 +22,90 @@ use crate::vrf;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-/// 中签结果结构体
+/// Winner result structure.
 ///
-/// 包含中签步数和 VRF 证明
+/// Contains the winning step number and the VRF proof.
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WinnerResult {
-    /// 中签步数
+    /// The winning step number
     pub step: u64,
 
-    /// VRF 证明
+    /// The VRF proof
     proof: Vec<u8>,
 }
 
 #[wasm_bindgen]
 impl WinnerResult {
-    /// 获取 VRF 证明
+    /// Get the VRF proof
     #[wasm_bindgen(getter)]
     pub fn proof(&self) -> Vec<u8> {
         self.proof.clone()
     }
 }
 
-/// 批量计算结果枚举
+/// Batch computation result enumeration.
 ///
-/// 表示一次批量 VDF 计算的结果状态。
-/// 每次调用 `run_batch` 都会返回一个 BatchResult。
+/// Represents the result state of a batch VDF computation.
+/// Each call to `run_batch` returns a `BatchResult`.
 ///
-/// # 变体说明
-/// - `Progress`: 计算进行中，返回当前步数
-/// - `Winner`: 发现中签，返回 WinnerResult
-/// - `Finished`: VDF 计算已完成
-/// - `Error`: 发生错误
+/// # Variants
+/// - `Progress`: Computation in progress, returns the current step number
+/// - `Winner`: A winning ticket is found, returns a `WinnerResult`
+/// - `Finished`: VDF computation has completed
+/// - `Error`: An error occurred
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BatchResult {
-    /// 计算进行中，包含当前步数
+    /// Computation in progress, contains the current step number
     Progress(u64),
 
-    /// 发现中签，包含 WinnerResult
+    /// A winning ticket is found, contains a `WinnerResult`
     Winner(WinnerResult),
 
-    /// VDF 计算已完成
+    /// VDF computation has completed
     Finished = "finished",
 
-    /// 发生错误
+    /// An error occurred
     Error(VtpError),
 }
 
-/// 会话状态结构体
+/// Session state structure.
 ///
-/// 包含会话的当前状态信息，用于前端显示和监控。
+/// Contains the current state information of a session, used for frontend display and monitoring.
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionState {
-    /// 当前已完成的 VDF 步数
+    /// The number of VDF steps completed so far
     pub step: u64,
 
-    /// 总步数目标
+    /// The total number of steps target
     pub total: u64,
 
-    /// 会话是否激活（未完成）
+    /// Whether the session is active (not yet finished)
     pub is_active: bool,
 
-    /// 会话是否暂停
+    /// Whether the session is paused
     pub is_paused: bool,
 
-    /// 错误发生次数
+    /// The number of errors that have occurred
     pub error_count: u32,
 }
 
-/// VDF 挑战会话
+/// VDF challenge session.
 ///
-/// 管理一次完整的 VDF 挑战，包括 VDF 计算、VRF 抽签和检查点。
+/// Manages a complete VDF challenge, including VDF computation, VRF lottery drawing, and checkpoints.
 ///
-/// # 字段说明
-/// - `vdf`: VDF 迭代器，负责顺序哈希计算
-/// - `keypair`: VRF 密钥对，用于生成和验证抽签证明
-/// - `k`: 抽签间隔，每 k 步进行一次 VRF 抽签
-/// - `tau`: 阈值，用于判断是否中签
-/// - `checkpoint_interval`: 检查点间隔
-/// - `error_handler`: 错误处理器
-/// - `is_paused`: 暂停标志
+/// # Fields
+/// - `vdf`: VDF iterator, responsible for sequential hash computation
+/// - `keypair`: VRF keypair, used for generating and verifying lottery proofs
+/// - `k`: Lottery interval, a VRF lottery draw is performed every k steps
+/// - `tau`: Threshold, used to determine if a winning ticket is drawn
+/// - `checkpoint_interval`: Checkpoint interval
+/// - `error_handler`: Error handler
+/// - `is_paused`: Pause flag
 ///
-/// # 使用示例
+/// # Examples
 /// ```rust
 /// use vtp_core::session::{Session, BatchResult};
 ///
@@ -115,54 +115,54 @@ pub struct SessionState {
 ///
 /// loop {
 ///     match session.run_batch(50) {
-///         BatchResult::Progress(step) => { /* 计算进行中 */ },
-///         BatchResult::Winner(result) => { /* 发现中签 */ },
+///         BatchResult::Progress(step) => { /* computation in progress */ },
+///         BatchResult::Winner(result) => { /* winning ticket found */ },
 ///         BatchResult::Finished => break,
-///         BatchResult::Error(err) => { /* 发生错误 */ },
+///         BatchResult::Error(err) => { /* error occurred */ },
 ///     }
 /// }
 /// ```
 #[wasm_bindgen]
 pub struct Session {
-    /// VDF 迭代器
+    /// VDF iterator
     vdf: VdfIterator,
 
-    /// VRF 密钥对
+    /// VRF keypair
     keypair: vrf::VrfKeypair,
 
-    /// 抽签间隔
+    /// Lottery interval
     k: u64,
 
-    /// 阈值（当前未使用，保留用于未来扩展）
+    /// Threshold (currently unused, reserved for future extension)
     #[allow(dead_code)]
     tau: Vec<u8>,
 
-    /// 检查点间隔
+    /// Checkpoint interval
     checkpoint_interval: u64,
 
-    /// 错误处理器
+    /// Error handler
     error_handler: ErrorHandler,
 
-    /// 暂停标志
+    /// Pause flag
     is_paused: bool,
 }
 
 #[wasm_bindgen]
 impl Session {
-    /// 创建新的会话
+    /// Create a new session.
     ///
-    /// # 参数
-    /// - `seed`: VDF 计算的初始种子，至少 32 字节
-    /// - `total`: VDF 总步数目标
-    /// - `k`: 抽签间隔
-    /// - `tau`: 阈值，32 字节
-    /// - `checkpoint_interval`: 检查点间隔
+    /// # Arguments
+    /// - `seed`: Initial seed for VDF computation, at least 32 bytes
+    /// - `total`: Total number of VDF steps target
+    /// - `k`: Lottery interval
+    /// - `tau`: Threshold, 32 bytes
+    /// - `checkpoint_interval`: Checkpoint interval
     ///
-    /// # 返回值
-    /// 返回初始化的 Session 实例
+    /// # Returns
+    /// Returns an initialized `Session` instance.
     ///
     /// # Panics
-    /// 如果 seed 或 tau 少于 32 字节，会 panic
+    /// Panics if `seed` or `tau` is less than 32 bytes.
     #[wasm_bindgen(constructor)]
     pub fn new(seed: &[u8], total: u64, k: u64, tau: &[u8], checkpoint_interval: u64) -> Self {
         let vdf = VdfIterator::new(seed, total);
@@ -180,10 +180,10 @@ impl Session {
         }
     }
 
-    /// 获取当前会话状态
+    /// Get the current session state.
     ///
-    /// # 返回值
-    /// 返回 SessionState 结构体，包含当前步数、总步数等信息
+    /// # Returns
+    /// Returns a `SessionState` struct containing the current step count, total steps, and other information.
     #[wasm_bindgen(getter)]
     pub fn state(&self) -> SessionState {
         SessionState {
@@ -195,54 +195,54 @@ impl Session {
         }
     }
 
-    /// 获取 VRF 公钥
+    /// Get the VRF public key.
     ///
-    /// # 返回值
-    /// 返回 32 字节的公钥向量
+    /// # Returns
+    /// Returns a 32-byte public key vector.
     #[wasm_bindgen(getter)]
     pub fn public_key(&self) -> Vec<u8> {
         self.keypair.public_key()
     }
 
-    /// 暂停会话
+    /// Pause the session.
     ///
-    /// 暂停后，`run_batch` 将返回当前进度而不执行新的计算。
+    /// Once paused, `run_batch` will return the current progress without executing new computations.
     pub fn pause(&mut self) {
         self.is_paused = true;
     }
 
-    /// 恢复会话
+    /// Resume the session.
     ///
-    /// 恢复后，`run_batch` 将继续执行 VDF 计算。
+    /// Once resumed, `run_batch` will continue executing VDF computations.
     pub fn resume(&mut self) {
         self.is_paused = false;
     }
 
-    /// 检查会话是否暂停
+    /// Check whether the session is paused.
     ///
-    /// # 返回值
-    /// - `true`: 会话已暂停
-    /// - `false`: 会话正在运行
+    /// # Returns
+    /// - `true`: The session is paused
+    /// - `false`: The session is running
     pub fn is_paused(&self) -> bool {
         self.is_paused
     }
 
-    /// 执行批量 VDF 计算
+    /// Execute batch VDF computation.
     ///
-    /// 执行最多 `max_steps` 步 VDF 计算，并在检查点进行 VRF 抽签。
+    /// Executes up to `max_steps` steps of VDF computation, and performs VRF lottery drawing at checkpoints.
     ///
-    /// # 参数
-    /// - `max_steps`: 最大执行步数
+    /// # Arguments
+    /// - `max_steps`: Maximum number of steps to execute
     ///
-    /// # 返回值
-    /// 返回 BatchResult 枚举，表示计算结果
+    /// # Returns
+    /// Returns a `BatchResult` enum indicating the computation result.
     ///
-    /// # 工作流程
-    /// 1. 检查会话是否已完成或暂停
-    /// 2. 执行 VDF 批量计算
-    /// 3. 在检查点步骤生成 VRF 证明
-    /// 4. 判断是否中签
-    /// 5. 返回相应的结果
+    /// # Workflow
+    /// 1. Check if the session has finished or is paused
+    /// 2. Execute VDF batch computation
+    /// 3. Generate VRF proof at checkpoint steps
+    /// 4. Determine if a winning ticket is drawn
+    /// 5. Return the corresponding result
     pub fn run_batch(&mut self, max_steps: u64) -> BatchResult {
         if self.vdf.is_finished() {
             return BatchResult::Error(VtpError::SessionFinished);
@@ -272,27 +272,27 @@ impl Session {
         }
     }
 
-    /// 检查是否为检查点步骤
+    /// Check if the given step is a checkpoint step.
     ///
-    /// # 参数
-    /// - `step`: 当前步数
+    /// # Arguments
+    /// - `step`: The current step number
     ///
-    /// # 返回值
-    /// - `true`: 是检查点步骤
-    /// - `false`: 不是检查点步骤
+    /// # Returns
+    /// - `true`: It is a checkpoint step
+    /// - `false`: It is not a checkpoint step
     #[allow(clippy::manual_is_multiple_of)]
     fn is_checkpoint_step(&self, step: u64) -> bool {
         step % self.checkpoint_interval == 0
     }
 
-    /// 检查是否应该触发 VRF 抽签
+    /// Check whether VRF lottery drawing should be triggered.
     ///
-    /// # 参数
-    /// - `step`: 当前步数
+    /// # Arguments
+    /// - `step`: The current step number
     ///
-    /// # 返回值
-    /// - `true`: 应该触发 VRF
-    /// - `false`: 不应该触发
+    /// # Returns
+    /// - `true`: VRF should be triggered
+    /// - `false`: VRF should not be triggered
     #[allow(clippy::manual_is_multiple_of)]
     fn should_trigger_vrf(&self, step: u64) -> bool {
         if self.k == 0 {
@@ -302,15 +302,15 @@ impl Session {
         step % self.k == 0
     }
 
-    /// 获取检查点数据
+    /// Get checkpoint data.
     ///
-    /// 生成用于持久化的检查点数据，包含当前步数和 VDF 状态。
+    /// Generates checkpoint data for persistence, containing the current step number and VDF state.
     ///
-    /// # 返回值
-    /// 返回序列化的检查点数据
+    /// # Returns
+    /// Returns the serialized checkpoint data.
     ///
-    /// # 数据格式
-    /// [8 字节步数 (大端序)] [32 字节 VDF 状态]
+    /// # Data Format
+    /// [8-byte step count (big-endian)] [32-byte VDF state]
     pub fn get_checkpoint_data(&self) -> Vec<u8> {
         let state = self.vdf.get_state();
         let step = self.vdf.step();
@@ -321,17 +321,17 @@ impl Session {
         data
     }
 
-    /// 验证中签证明
+    /// Verify a winning proof.
     ///
-    /// 验证给定的 VRF 证明是否有效。
+    /// Verifies whether the given VRF proof is valid.
     ///
-    /// # 参数
-    /// - `step`: 中签步数
-    /// - `proof`: VRF 证明
+    /// # Arguments
+    /// - `step`: The winning step number
+    /// - `proof`: The VRF proof
     ///
-    /// # 返回值
-    /// - `true`: 证明有效
-    /// - `false`: 证明无效
+    /// # Returns
+    /// - `true`: The proof is valid
+    /// - `false`: The proof is invalid
     pub fn verify_winner(&self, step: u64, proof: &[u8]) -> bool {
         let message = step.to_be_bytes();
         vrf::verify(&self.keypair.public_key(), &message, proof)

@@ -5,7 +5,10 @@ export default defineConfig({
   plugins: [sveltekit()],
   server: {
     port: 5173,
-    strictPort: false
+    strictPort: false,
+    fs: {
+      allow: ['.']
+    }
   },
   build: {
     target: 'esnext',
@@ -17,5 +20,8 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['vtp-core']
+  },
+  ssr: {
+    noExternal: []
   }
 });

@@ -1,68 +1,68 @@
-//! VDF (Verifiable Delay Function) 模块
+//! VDF (Verifiable Delay Function) module.
 //!
-//! 实现了基于连续 SHA256 迭代的可验证延迟函数。
-//! VDF 是一种需要按顺序执行计算的函数，无法通过并行化来加速。
+//! Implements a verifiable delay function based on consecutive SHA256 iterations.
+//! A VDF is a function that requires sequential computation and cannot be accelerated through parallelization.
 //!
-//! # 算法说明
-//! 每一步 VDF 计算都是对前一步结果的 SHA256 哈希：
+//! # Algorithm
+//! Each VDF step computes a SHA256 hash of the previous step's result:
 //! state[i+1] = SHA256(state[i])
 //!
-//! # 性能目标
-//! - 在 WebAssembly 环境中，单步耗时 ≤ 500ns
-//! - 对应 ≥ 2M 步/秒的吞吐量
+//! # Performance Targets
+//! - In a WebAssembly environment, single-step latency ≤ 500ns
+//! - Corresponding throughput ≥ 2M steps/second
 
 use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
 
-/// VDF 迭代器，用于管理 VDF 计算的状态和进度
+/// VDF iterator, used to manage the state and progress of VDF computation.
 ///
-/// 该结构体封装了 VDF 计算的完整状态，包括：
-/// - 当前计算状态（32 字节哈希值）
-/// - 已完成的步数
-/// - 总步数目标
+/// This struct encapsulates the complete state of VDF computation, including:
+/// - Current computation state (32-byte hash value)
+/// - Number of completed steps
+/// - Total steps target
 ///
-/// # 使用场景
-/// - 长时间运行的 VDF 计算任务
-/// - 需要暂停/恢复的计算
-/// - 批量处理优化
+/// # Use Cases
+/// - Long-running VDF computation tasks
+/// - Computations that require pause/resume support
+/// - Batch processing optimization
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::vdf::VdfIterator;
 /// let seed = [0u8; 32];
 /// let mut iterator = VdfIterator::new(&seed, 1000000);
 ///
-/// // 执行 1000 步
+/// // Execute 1000 steps
 /// let steps = iterator.run_batch(1000);
 ///
-/// // 检查进度
+/// // Check progress
 /// println!("Progress: {}/{}", iterator.step(), iterator.total());
 /// ```
 #[wasm_bindgen]
 pub struct VdfIterator {
-    /// 当前 VDF 状态，32 字节的哈希值
+    /// Current VDF state, a 32-byte hash value
     state: [u8; 32],
 
-    /// 已完成的 VDF 步数
+    /// Number of completed VDF steps
     step: u64,
 
-    /// 总步数目标
+    /// Total steps target
     total: u64,
 }
 
 #[wasm_bindgen]
 impl VdfIterator {
-    /// 创建新的 VDF 迭代器
+    /// Create a new VDF iterator.
     ///
-    /// # 参数
-    /// - `seed`: 初始种子，至少 32 字节
-    /// - `total`: 总步数目标
+    /// # Arguments
+    /// - `seed`: Initial seed, at least 32 bytes
+    /// - `total`: Total steps target
     ///
-    /// # 返回值
-    /// 返回初始化的 VdfIterator 实例
+    /// # Returns
+    /// Returns an initialized `VdfIterator` instance.
     ///
     /// # Panics
-    /// 如果 seed 少于 32 字节，会 panic
+    /// Panics if `seed` is less than 32 bytes.
     #[wasm_bindgen(constructor)]
     pub fn new(seed: &[u8], total: u64) -> Self {
         let mut state = [0u8; 32];
@@ -71,50 +71,50 @@ impl VdfIterator {
         Self { state, step: 0, total }
     }
 
-    /// 获取当前已完成的步数
+    /// Get the number of completed steps.
     ///
-    /// # 返回值
-    /// 返回当前已完成的 VDF 迭代次数
+    /// # Returns
+    /// Returns the number of VDF iterations completed so far.
     pub fn step(&self) -> u64 {
         self.step
     }
 
-    /// 获取总步数目标
+    /// Get the total steps target.
     ///
-    /// # 返回值
-    /// 返回 VDF 计算的总步数目标
+    /// # Returns
+    /// Returns the total steps target for the VDF computation.
     pub fn total(&self) -> u64 {
         self.total
     }
 
-    /// 检查 VDF 计算是否已完成
+    /// Check whether the VDF computation has completed.
     ///
-    /// # 返回值
-    /// - `true`: 已完成所有步数
-    /// - `false`: 还有剩余步数
+    /// # Returns
+    /// - `true`: All steps have been completed
+    /// - `false`: There are remaining steps
     pub fn is_finished(&self) -> bool {
         self.step >= self.total
     }
 
-    /// 获取当前 VDF 状态
+    /// Get the current VDF state.
     ///
-    /// # 返回值
-    /// 返回 32 字节的当前状态向量
+    /// # Returns
+    /// Returns a 32-byte vector of the current state.
     ///
-    /// # 注意
-    /// 每次调用都会创建一个新的 Vec，频繁调用可能影响性能
+    /// # Note
+    /// Each call creates a new `Vec`; frequent calls may impact performance.
     pub fn get_state(&self) -> Vec<u8> {
         self.state.to_vec()
     }
 
-    /// 执行单步 VDF 计算
+    /// Execute a single VDF computation step.
     ///
-    /// # 返回值
-    /// - `true`: 成功执行一步
-    /// - `false`: 已完成所有步数，无法继续
+    /// # Returns
+    /// - `true`: Successfully executed one step
+    /// - `false`: All steps have been completed, cannot continue
     ///
-    /// # 性能考虑
-    /// 对于批量处理，建议使用 `run_batch` 方法以获得更好的性能
+    /// # Performance Considerations
+    /// For batch processing, it is recommended to use the `run_batch` method for better performance.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> bool {
         if self.is_finished() {
@@ -126,21 +126,21 @@ impl VdfIterator {
         true
     }
 
-    /// 批量执行 VDF 计算
+    /// Execute VDF computation in batch.
     ///
-    /// 执行最多 `max_steps` 步 VDF 计算，或者直到完成所有步数。
-    /// 该方法优化了循环开销，适合长时间运行的计算任务。
+    /// Executes up to `max_steps` steps of VDF computation, or until all steps are completed.
+    /// This method optimizes loop overhead and is suitable for long-running computation tasks.
     ///
-    /// # 参数
-    /// - `max_steps`: 最大执行步数
+    /// # Arguments
+    /// - `max_steps`: Maximum number of steps to execute
     ///
-    /// # 返回值
-    /// 返回实际执行的步数
+    /// # Returns
+    /// Returns the actual number of steps executed.
     ///
-    /// # 性能说明
-    /// - 使用 `saturating_sub` 防止溢出
-    /// - 使用 `min` 确保不超过剩余步数
-    /// - 循环内直接操作数组，避免额外的函数调用开销
+    /// # Performance Notes
+    /// - Uses `saturating_sub` to prevent overflow
+    /// - Uses `min` to ensure it does not exceed the remaining steps
+    /// - Operates directly on the array inside the loop to avoid extra function call overhead
     pub fn run_batch(&mut self, max_steps: u64) -> u64 {
         let remaining = self.total.saturating_sub(self.step);
         let steps = max_steps.min(remaining);
@@ -154,23 +154,23 @@ impl VdfIterator {
     }
 }
 
-/// 执行单步 VDF 计算
+/// Execute a single VDF computation step.
 ///
-/// 对输入状态执行一次 SHA256 哈希，返回新的状态。
-/// 这是 VDF 计算的核心原语。
+/// Computes a SHA256 hash on the input state and returns the new state.
+/// This is the core primitive of VDF computation.
 ///
-/// # 参数
-/// - `state`: 32 字节的输入状态
+/// # Arguments
+/// - `state`: 32-byte input state
 ///
-/// # 返回值
-/// 返回 32 字节的输出状态
+/// # Returns
+/// Returns the 32-byte output state.
 ///
-/// # 算法
+/// # Algorithm
 /// output = SHA256(input)
 ///
-/// # 性能
-/// - 单次 SHA256 计算耗时约 200-500ns（取决于硬件）
-/// - 在 WebAssembly 中可能略慢
+/// # Performance
+/// - A single SHA256 computation takes approximately 200-500ns (depending on hardware)
+/// - May be slightly slower in WebAssembly
 pub fn vdf_step(state: &[u8; 32]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(state);
@@ -186,11 +186,11 @@ mod tests {
     use super::*;
     use wasm_bindgen_test::*;
 
-    /// 测试单步 VDF 计算
+    /// Test single-step VDF computation.
     ///
-    /// 验证：
-    /// 1. 输出与输入不同
-    /// 2. 输出长度为 32 字节
+    /// Verifies:
+    /// 1. Output differs from input
+    /// 2. Output length is 32 bytes
     #[wasm_bindgen_test]
     fn test_vdf_step() {
         let state = [0u8; 32];
@@ -200,12 +200,12 @@ mod tests {
         assert_eq!(next_state.len(), 32);
     }
 
-    /// 测试 VDF 迭代器的基本功能
+    /// Test basic functionality of the VDF iterator.
     ///
-    /// 验证：
-    /// 1. 初始状态正确
-    /// 2. 单步迭代正常工作
-    /// 3. 完成后正确返回 false
+    /// Verifies:
+    /// 1. Initial state is correct
+    /// 2. Single-step iteration works correctly
+    /// 3. Returns `false` correctly after completion
     #[wasm_bindgen_test]
     fn test_vdf_iterator() {
         let seed = [0u8; 32];
@@ -224,12 +224,12 @@ mod tests {
         assert!(!iter.next());
     }
 
-    /// 测试批量 VDF 计算
+    /// Test batch VDF computation.
     ///
-    /// 验证：
-    /// 1. 批量执行正确
-    /// 2. 不超过总步数
-    /// 3. 进度正确更新
+    /// Verifies:
+    /// 1. Batch execution is correct
+    /// 2. Does not exceed total steps
+    /// 3. Progress is updated correctly
     #[wasm_bindgen_test]
     fn test_vdf_batch() {
         let seed = [0u8; 32];
@@ -245,9 +245,9 @@ mod tests {
         assert!(iter.is_finished());
     }
 
-    /// 测试 VDF 的确定性
+    /// Test VDF determinism.
     ///
-    /// 验证相同种子产生相同结果，确保计算的确定性
+    /// Verifies that the same seed produces the same result, ensuring computational determinism.
     #[wasm_bindgen_test]
     fn test_deterministic() {
         let seed = [0u8; 32];

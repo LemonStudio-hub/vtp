@@ -1,23 +1,23 @@
 <!--
-  VDFCanvas 组件
+  VDFCanvas Component
 
-  可视化 VDF 计算进度的 Canvas 组件，包括：
-  - 进度环：显示 VDF 计算完成百分比
-  - 粒子效果：根据计算速度生成动态粒子
-  - 百分比文字：居中显示完成百分比
+  A Canvas component that visualizes VDF computation progress, including:
+  - Progress ring: displays the VDF computation completion percentage
+  - Particle effect: generates dynamic particles based on computation speed
+  - Percentage text: centered display of the completion percentage
 
-  功能特点：
-  - 实时响应计算状态
-  - 粒子数量与计算速度成正比
-  - 平滑的动画效果
-  - 自动启动/停止动画
+  Features:
+  - Real-time response to computation state
+  - Particle count is proportional to computation speed
+  - Smooth animation effects
+  - Automatic animation start/stop
 
-  性能优化：
-  - 使用 requestAnimationFrame 实现平滑动画
-  - 粒子数量限制，避免性能问题
-  - 组件销毁时自动清理资源
+  Performance optimizations:
+  - Uses requestAnimationFrame for smooth animation
+  - Particle count limit to avoid performance issues
+  - Automatic resource cleanup on component destroy
 
-  使用示例：
+  Usage example:
   ```svelte
   <VDFCanvas />
   ```
@@ -27,90 +27,147 @@
   import { onMount, onDestroy } from 'svelte';
   import { workerState } from '$stores/worker';
 
-  /** Canvas 元素引用 */
+  /** Reference to the Canvas element */
   let canvas: HTMLCanvasElement;
 
-  /** Canvas 2D 渲染上下文 */
+  /** Canvas 2D rendering context */
   let ctx: CanvasRenderingContext2D | null = null;
 
-  /** 动画帧 ID，用于取消动画 */
+  /** Animation frame ID, used to cancel the animation */
   let animationFrame: number;
 
-  /** 粒子数组 */
+  /** Particle array */
   let particles: Particle[] = [];
 
+  /** Orbit ring particles for ambient effect */
+  let orbitParticles: OrbitParticle[] = [];
+
+  /** Time counter for animations */
+  let time = 0;
+
   /**
-   * 粒子接口定义
+   * Particle interface definition
    *
-   * 描述单个粒子的状态
+   * Describes the state of a single particle
    */
   interface Particle {
-    /** X 坐标 */
+    /** X coordinate */
     x: number;
 
-    /** Y 坐标 */
+    /** Y coordinate */
     y: number;
 
-    /** X 方向速度 */
+    /** Velocity in the X direction */
     vx: number;
 
-    /** Y 方向速度 */
+    /** Velocity in the Y direction */
     vy: number;
 
-    /** 生命值，范围 [0, 1] */
+    /** Life value, range [0, 1] */
     life: number;
 
-    /** 最大生命值（帧数） */
+    /** Maximum life value (in frames) */
     maxLife: number;
 
-    /** 色相，范围 [0, 360] */
+    /** Hue value, range [0, 360] */
     hue: number;
+
+    /** Size multiplier */
+    size: number;
   }
 
   /**
-   * 响应式启动动画
+   * Orbit particle interface
    *
-   * 当 canvas 可用且计算正在运行时，启动动画循环
+   * Particles that orbit around the progress ring
+   */
+  interface OrbitParticle {
+    /** Current angle in radians */
+    angle: number;
+
+    /** Distance from center */
+    radius: number;
+
+    /** Angular velocity */
+    speed: number;
+
+    /** Size */
+    size: number;
+
+    /** Hue */
+    hue: number;
+
+    /** Life value */
+    life: number;
+  }
+
+  /**
+   * Reactive animation start
+   *
+   * Starts the animation loop when the canvas is available
+   * and computation is running
    */
   $: if (canvas && $workerState.isRunning) {
     startAnimation();
   }
 
   /**
-   * 响应式停止动画
+   * Reactive animation stop
    *
-   * 当计算停止时，停止动画循环
+   * Stops the animation loop when computation stops
    */
   $: if (!$workerState.isRunning && animationFrame) {
     stopAnimation();
   }
 
   /**
-   * 组件挂载时初始化 Canvas
+   * Initialize the Canvas when the component mounts
    *
-   * 获取 2D 渲染上下文并设置 canvas 尺寸
+   * Obtains the 2D rendering context and sets the canvas dimensions
    */
   onMount(() => {
     if (canvas) {
       ctx = canvas.getContext('2d');
-      canvas.width = 400;
-      canvas.height = 400;
+      canvas.width = 450;
+      canvas.height = 450;
+
+      // Initialize orbit particles
+      initOrbitParticles();
+
+      // Start ambient animation even when not computing
+      animate();
     }
   });
 
   /**
-   * 组件销毁时清理资源
+   * Clean up resources when the component is destroyed
    *
-   * 取消动画帧，防止内存泄漏
+   * Cancels the animation frame to prevent memory leaks
    */
   onDestroy(() => {
     stopAnimation();
   });
 
   /**
-   * 启动动画循环
+   * Initialize orbit particles for ambient effect
+   */
+  function initOrbitParticles() {
+    for (let i = 0; i < 20; i++) {
+      orbitParticles.push({
+        angle: Math.random() * Math.PI * 2,
+        radius: 130 + Math.random() * 20,
+        speed: 0.005 + Math.random() * 0.01,
+        size: 1 + Math.random() * 2,
+        hue: 140 + Math.random() * 40,
+        life: Math.random()
+      });
+    }
+  }
+
+  /**
+   * Start the animation loop
    *
-   * 取消现有动画帧并启动新的动画循环
+   * Cancels any existing animation frame and starts a new animation loop
    */
   function startAnimation() {
     if (animationFrame) cancelAnimationFrame(animationFrame);
@@ -118,9 +175,9 @@
   }
 
   /**
-   * 停止动画循环
+   * Stop the animation loop
    *
-   * 取消当前动画帧
+   * Cancels the current animation frame
    */
   function stopAnimation() {
     if (animationFrame) {
@@ -129,174 +186,347 @@
   }
 
   /**
-   * 动画主循环
+   * Main animation loop
    *
-   * 每帧执行一次，负责：
-   * 1. 清空画布（半透明效果，形成拖尾）
-   * 2. 绘制进度环
-   * 3. 更新和绘制粒子
-   * 4. 生成新粒子
-   * 5. 请求下一帧
+   * Executes once per frame, responsible for:
+   * 1. Clearing the canvas (semi-transparent effect for trailing)
+   * 2. Drawing the progress ring
+   * 3. Updating and drawing particles
+   * 4. Spawning new particles
+   * 5. Requesting the next frame
    */
   function animate() {
     if (!ctx || !canvas) return;
 
-    // 半透明背景，形成拖尾效果
-    ctx.fillStyle = 'rgba(26, 26, 46, 0.1)';
+    time += 0.016;
+
+    // Clear canvas with slight trail effect
+    ctx.fillStyle = 'rgba(10, 10, 26, 0.15)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 计算中心点和进度
+    // Calculate center point and progress
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const progress = $workerState.currentStep / ($workerState.totalSteps || 1000000);
 
-    // 绘制进度环
+    // Draw ambient glow
+    drawAmbientGlow(ctx, centerX, centerY);
+
+    // Draw orbit particles
+    drawOrbitParticles(ctx, centerX, centerY);
+
+    // Draw the progress ring
     drawProgressRing(ctx, centerX, centerY, progress);
 
-    // 更新和绘制粒子
-    updateParticles();
-    drawParticles(ctx);
+    // Update and draw particles
+    if ($workerState.isRunning) {
+      updateParticles();
+      drawParticles(ctx);
 
-    // 根据速度生成新粒子
-    if ($workerState.speed > 0) {
-      spawnParticles(centerX, centerY, $workerState.speed);
+      // Spawn new particles based on speed
+      if ($workerState.speed > 0) {
+        spawnParticles(centerX, centerY, $workerState.speed);
+      }
     }
 
-    // 请求下一帧
+    // Request the next frame
     animationFrame = requestAnimationFrame(animate);
   }
 
   /**
-   * 绘制进度环
+   * Draw ambient glow effect
    *
-   * 绘制两个同心圆弧：
-   * - 灰色背景环：表示总进度
-   * - 绿色前景环：表示当前进度
-   * - 中心文字：显示百分比
-   *
-   * @param ctx - Canvas 2D 渲染上下文
-   * @param x - 中心 X 坐标
-   * @param y - 中心 Y 坐标
-   * @param progress - 进度值，范围 [0, 1]
+   * Creates a soft glowing background effect around the progress ring
    */
-  function drawProgressRing(ctx: CanvasRenderingContext2D, x: number, y: number, progress: number) {
-    const radius = 120;
-    const lineWidth = 8;
-    const startAngle = -Math.PI / 2; // 从顶部开始
-    const endAngle = startAngle + 2 * Math.PI * progress;
+  function drawAmbientGlow(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    const glowRadius = 150 + Math.sin(time * 2) * 10;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
 
-    // 绘制背景环（灰色）
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2 * Math.PI);
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = lineWidth;
-    ctx.stroke();
+    if ($workerState.isRunning) {
+      gradient.addColorStop(0, 'rgba(0, 255, 136, 0.08)');
+      gradient.addColorStop(0.5, 'rgba(0, 255, 136, 0.03)');
+      gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+    } else {
+      gradient.addColorStop(0, 'rgba(100, 100, 100, 0.05)');
+      gradient.addColorStop(1, 'rgba(100, 100, 100, 0)');
+    }
 
-    // 绘制前景环（绿色）
-    ctx.beginPath();
-    ctx.arc(x, y, radius, startAngle, endAngle);
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-
-    // 绘制中心百分比文字
-    ctx.fillStyle = '#e6e6e6';
-    ctx.font = 'bold 24px Courier New';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`${(progress * 100).toFixed(1)}%`, x, y);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   }
 
   /**
-   * 生成新粒子
+   * Draw orbit particles
    *
-   * 根据计算速度生成相应数量的粒子。
-   * 粒子数量与速度成正比，最多 5 个。
+   * Draws small particles orbiting around the progress ring
+   */
+  function drawOrbitParticles(ctx: CanvasRenderingContext2D, x: number, y: number) {
+    for (const p of orbitParticles) {
+      p.angle += p.speed;
+      p.life = 0.3 + Math.sin(time * 2 + p.angle) * 0.3;
+
+      const px = x + Math.cos(p.angle) * p.radius;
+      const py = y + Math.sin(p.angle) * p.radius;
+
+      ctx.beginPath();
+      ctx.arc(px, py, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, 80%, 60%, ${p.life * 0.5})`;
+      ctx.fill();
+    }
+  }
+
+  /**
+   * Draw the progress ring
    *
-   * @param x - 生成中心 X 坐标
-   * @param y - 生成中心 Y 坐标
-   * @param speed - 计算速度（步/秒）
+   * Draws two concentric arcs:
+   * - Gray background ring: represents the total progress
+   * - Green foreground ring: represents the current progress
+   * - Center text: displays the percentage
+   *
+   * @param ctx - Canvas 2D rendering context
+   * @param x - Center X coordinate
+   * @param y - Center Y coordinate
+   * @param progress - Progress value, range [0, 1]
+   */
+  function drawProgressRing(ctx: CanvasRenderingContext2D, x: number, y: number, progress: number) {
+    const radius = 120;
+    const lineWidth = 10;
+    const startAngle = -Math.PI / 2; // Start from the top
+    const endAngle = startAngle + 2 * Math.PI * progress;
+
+    // Draw outer glow for the progress
+    if (progress > 0) {
+      ctx.save();
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = 'rgba(0, 255, 136, 0.5)';
+      ctx.beginPath();
+      ctx.arc(x, y, radius, startAngle, endAngle);
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.2)';
+      ctx.lineWidth = lineWidth + 8;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw the background ring (dark)
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+
+    // Draw inner track
+    ctx.beginPath();
+    ctx.arc(x, y, radius - 15, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Draw outer track
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 15, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Draw the foreground ring with gradient
+    if (progress > 0) {
+      const gradient = ctx.createConicGradient(startAngle, x, y);
+      gradient.addColorStop(0, '#00ff88');
+      gradient.addColorStop(progress, '#00cc6a');
+      gradient.addColorStop(1, 'transparent');
+
+      ctx.beginPath();
+      ctx.arc(x, y, radius, startAngle, endAngle);
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      // Draw progress end dot
+      const endX = x + Math.cos(endAngle) * radius;
+      const endY = y + Math.sin(endAngle) * radius;
+
+      ctx.beginPath();
+      ctx.arc(endX, endY, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#00ff88';
+      ctx.fill();
+
+      // Outer glow for the dot
+      ctx.beginPath();
+      ctx.arc(endX, endY, 10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.3)';
+      ctx.fill();
+    }
+
+    // Draw tick marks
+    for (let i = 0; i < 60; i++) {
+      const angle = (i / 60) * Math.PI * 2 - Math.PI / 2;
+      const innerRadius = i % 5 === 0 ? radius - 20 : radius - 15;
+      const outerRadius = radius - 12;
+
+      ctx.beginPath();
+      ctx.moveTo(
+        x + Math.cos(angle) * innerRadius,
+        y + Math.sin(angle) * innerRadius
+      );
+      ctx.lineTo(
+        x + Math.cos(angle) * outerRadius,
+        y + Math.sin(angle) * outerRadius
+      );
+      ctx.strokeStyle = i % 5 === 0 ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = i % 5 === 0 ? 2 : 1;
+      ctx.stroke();
+    }
+
+    // Draw center percentage text
+    const percentage = (progress * 100).toFixed(1);
+
+    // Text shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.font = 'bold 36px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${percentage}%`, x + 1, y + 1);
+
+    // Main text
+    ctx.fillStyle = $workerState.isRunning ? '#00ff88' : '#666';
+    ctx.fillText(`${percentage}%`, x, y);
+
+    // Subtitle
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillText('VDF Progress', x, y + 25);
+  }
+
+  /**
+   * Spawn new particles
+   *
+   * Generates a number of particles proportional to the computation speed.
+   * The particle count is proportional to speed, with a maximum of 8.
+   *
+   * @param x - Spawn center X coordinate
+   * @param y - Spawn center Y coordinate
+   * @param speed - Computation speed (steps/second)
    */
   function spawnParticles(x: number, y: number, speed: number) {
-    // 根据速度计算粒子数量，最多 5 个
-    const count = Math.min(Math.floor(speed / 100000), 5);
+    // Calculate particle count based on speed, capped at 8
+    const count = Math.min(Math.floor(speed / 80000), 8);
 
     for (let i = 0; i < count; i++) {
-      // 随机角度和速度
+      // Random angle and speed
       const angle = Math.random() * Math.PI * 2;
-      const speed = 0.5 + Math.random() * 2;
+      const velocity = 0.5 + Math.random() * 3;
 
       particles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
+        x: x + Math.cos(angle) * 120,
+        y: y + Math.sin(angle) * 120,
+        vx: Math.cos(angle) * velocity,
+        vy: Math.sin(angle) * velocity,
         life: 1,
-        maxLife: 60 + Math.random() * 60,
-        hue: (Date.now() / 10) % 360
+        maxLife: 40 + Math.random() * 60,
+        hue: 140 + Math.random() * 40,
+        size: 1 + Math.random() * 2
       });
     }
   }
 
   /**
-   * 更新粒子状态
+   * Update particle states
    *
-   * 更新所有粒子的位置和生命值。
-   * 移除生命值为 0 的粒子。
+   * Updates the position and life value of all particles.
+   * Removes particles whose life value has reached 0.
    */
   function updateParticles() {
-    // 移除死亡粒子
+    // Remove dead particles
     particles = particles.filter((p) => p.life > 0);
 
-    // 更新粒子位置和生命值
+    // Update particle positions and life values
     for (const p of particles) {
       p.x += p.vx;
       p.y += p.vy;
+      p.vx *= 0.98; // Slight drag
+      p.vy *= 0.98;
       p.life -= 1 / p.maxLife;
     }
   }
 
   /**
-   * 绘制粒子
+   * Draw particles
    *
-   * 绘制所有存活的粒子。
-   * 粒子大小和透明度与生命值成正比。
+   * Draws all living particles.
+   * Particle size and opacity are proportional to their life value.
    *
-   * @param ctx - Canvas 2D 渲染上下文
+   * @param ctx - Canvas 2D rendering context
    */
   function drawParticles(ctx: CanvasRenderingContext2D) {
     for (const p of particles) {
-      const alpha = p.life;
-      const size = 2 + p.life * 3;
+      const alpha = p.life * 0.8;
+      const size = p.size * p.life;
 
+      // Outer glow
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size * 3, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, 80%, 60%, ${alpha * 0.2})`;
+      ctx.fill();
+
+      // Core
       ctx.beginPath();
       ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${p.hue}, 80%, 60%, ${alpha})`;
+      ctx.fillStyle = `hsla(${p.hue}, 80%, 70%, ${alpha})`;
       ctx.fill();
     }
   }
 </script>
 
-<!-- VDF 可视化容器 -->
-<div class="vdf-canvas-container">
+<!-- VDF visualization container -->
+<div class="vdf-canvas-container" class:running={$workerState.isRunning}>
   <canvas bind:this={canvas}></canvas>
+
+  <!-- Status overlay -->
+  <div class="status-overlay">
+    {#if !$workerState.isRunning}
+      <span class="status-text">Idle</span>
+    {/if}
+  </div>
 </div>
 
 <style>
-  /* VDF 可视化容器 */
+  /* VDF visualization container */
   .vdf-canvas-container {
+    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
-    background: #16213e;
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 1rem;
+    transition: all 0.3s ease;
   }
 
-  /* Canvas 元素样式 */
+  .vdf-canvas-container.running {
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.1);
+  }
+
+  /* Canvas element styles */
   canvas {
     max-width: 100%;
     height: auto;
+  }
+
+  /* Status overlay */
+  .status-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .status-text {
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 </style>

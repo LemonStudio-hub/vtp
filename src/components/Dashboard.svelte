@@ -1,20 +1,20 @@
 <!--
-  Dashboard 组件
+  Dashboard Component
 
-  VTP 节点的主仪表盘界面，负责：
-  1. 展示 VDF 计算进度
-  2. 显示实时统计数据
-  3. 提供控制按钮（开始/暂停/恢复）
-  4. 显示事件日志
+  Main dashboard interface for the VTP node, responsible for:
+  1. Displaying VDF computation progress
+  2. Showing real-time statistics
+  3. Providing control buttons (start/pause/resume)
+  4. Displaying the event log
 
-  组件结构：
-  - IdentityBadge: 节点身份标识
-  - VDFCanvas: VDF 进度可视化
-  - StatsPanel: 实时统计面板
-  - EventLog: 事件日志
-  - 控制按钮区域
+  Component structure:
+  - IdentityBadge: Node identity indicator
+  - VDFCanvas: VDF progress visualization
+  - StatsPanel: Real-time statistics panel
+  - EventLog: Event log
+  - Control button area
 
-  使用示例：
+  Usage example:
   ```svelte
   <Dashboard />
   ```
@@ -28,41 +28,49 @@
   import IdentityBadge from './IdentityBadge.svelte';
   import VDFCanvas from './VDFCanvas.svelte';
 
-  /** Web Worker 实例引用 */
+  /** Reference to the Web Worker instance */
   let worker: Worker | null = null;
 
-  /** Store 订阅取消函数 */
+  /** Store subscription cancellation function */
   let unsubscribe: () => void;
 
+  /** Animation trigger for staggered entrance */
+  let mounted = false;
+
   /**
-   * 组件挂载时订阅 Worker Store
+   * Subscribe to the Worker Store when the component mounts
    *
-   * 获取 Worker 实例引用，用于发送控制命令
+   * Obtains a reference to the Worker instance for sending control commands
    */
   onMount(() => {
     unsubscribe = workerStore.subscribe((w) => {
       worker = w;
     });
+
+    // Trigger staggered entrance animations
+    setTimeout(() => {
+      mounted = true;
+    }, 200);
   });
 
   /**
-   * 组件销毁时取消订阅
+   * Unsubscribe when the component is destroyed
    *
-   * 防止内存泄漏
+   * Prevents memory leaks
    */
   onDestroy(() => {
     if (unsubscribe) unsubscribe();
   });
 
   /**
-   * 处理开始按钮点击
+   * Handle the start button click
    *
-   * 向 Worker 发送 start 命令，包含 VDF 配置参数：
-   * - seed: 32 字节随机种子
-   * - total: 总步数目标（100万步）
-   * - k: VRF 抽签间隔（每1000步）
-   * - tau: 32 字节阈值
-   * - checkpointInterval: 检查点间隔（每10万步）
+   * Sends a start command to the Worker with VDF configuration parameters:
+   * - seed: 32-byte random seed
+   * - total: total step target (1,000,000 steps)
+   * - k: VRF lottery interval (every 1,000 steps)
+   * - tau: 32-byte threshold
+   * - checkpointInterval: checkpoint interval (every 100,000 steps)
    */
   function handleStart() {
     if (worker) {
@@ -78,9 +86,9 @@
   }
 
   /**
-   * 处理暂停按钮点击
+   * Handle the pause button click
    *
-   * 向 Worker 发送 pause 命令
+   * Sends a pause command to the Worker
    */
   function handlePause() {
     if (worker) {
@@ -89,9 +97,9 @@
   }
 
   /**
-   * 处理恢复按钮点击
+   * Handle the resume button click
    *
-   * 向 Worker 发送 resume 命令
+   * Sends a resume command to the Worker
    */
   function handleResume() {
     if (worker) {
@@ -100,121 +108,380 @@
   }
 </script>
 
-<!-- 主仪表盘布局 -->
-<div class="dashboard">
-  <!-- 头部：身份标识和标题 -->
-  <header>
+<!-- Main dashboard layout -->
+<div class="dashboard" class:mounted>
+  <!-- Header: identity indicator and title -->
+  <header class="header-animate">
     <IdentityBadge />
-    <h1>VTP Node</h1>
+    <div class="title-container">
+      <h1>VTP Node</h1>
+      <span class="subtitle">Verifiable Time Proof</span>
+    </div>
+    <div class="status-indicator" class:running={$workerState.isRunning}>
+      <span class="status-dot"></span>
+      <span class="status-text">{$workerState.isRunning ? 'Computing' : 'Ready'}</span>
+    </div>
   </header>
 
-  <!-- VDF 进度可视化区域 -->
-  <section class="vdf-section">
-    <VDFCanvas />
-  </section>
+  <!-- Main content grid -->
+  <div class="content-grid">
+    <!-- Left column: VDF visualization and stats -->
+    <div class="left-column">
+      <!-- VDF progress visualization area -->
+      <section class="vdf-section glass-card">
+        <VDFCanvas />
+      </section>
 
-  <!-- 统计面板 -->
-  <section class="stats-section">
-    <StatsPanel />
-  </section>
+      <!-- Statistics panel -->
+      <section class="stats-section glass-card">
+        <StatsPanel />
+      </section>
+    </div>
 
-  <!-- 控制按钮区域 -->
-  <section class="controls">
-    <!-- 开始按钮：仅在未运行时可用 -->
-    <button on:click={handleStart} disabled={$workerState.isRunning}> Start </button>
+    <!-- Right column: controls and event log -->
+    <div class="right-column">
+      <!-- Control button area -->
+      <section class="controls glass-card">
+        <h3 class="section-title">Controls</h3>
+        <div class="button-group">
+          <!-- Start button: only enabled when not running -->
+          <button
+            class="btn btn-start"
+            on:click={handleStart}
+            disabled={$workerState.isRunning}
+          >
+            <span class="btn-icon">▶</span>
+            <span>Start</span>
+          </button>
 
-    <!-- 暂停按钮：仅在运行中且未暂停时可用 -->
-    <button on:click={handlePause} disabled={!$workerState.isRunning || $workerState.isPaused}>
-      Pause
-    </button>
+          <!-- Pause button: only enabled when running and not already paused -->
+          <button
+            class="btn btn-pause"
+            on:click={handlePause}
+            disabled={!$workerState.isRunning || $workerState.isPaused}
+          >
+            <span class="btn-icon">⏸</span>
+            <span>Pause</span>
+          </button>
 
-    <!-- 恢复按钮：仅在暂停状态时可用 -->
-    <button on:click={handleResume} disabled={!$workerState.isPaused}> Resume </button>
-  </section>
+          <!-- Resume button: only enabled when paused -->
+          <button
+            class="btn btn-resume"
+            on:click={handleResume}
+            disabled={!$workerState.isPaused}
+          >
+            <span class="btn-icon">▶</span>
+            <span>Resume</span>
+          </button>
+        </div>
+      </section>
 
-  <!-- 事件日志区域 -->
-  <section class="events-section">
-    <EventLog />
-  </section>
+      <!-- Event log area -->
+      <section class="events-section glass-card">
+        <EventLog />
+      </section>
+    </div>
+  </div>
 </div>
 
 <style>
-  /* 仪表盘主容器 */
+  /* Dashboard main container */
   .dashboard {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 2rem;
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* 头部区域 */
-  header {
+  .dashboard.mounted {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Header area */
+  .header-animate {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #333;
+    gap: 1.5rem;
+    padding: 1.5rem 2rem;
+    background: rgba(22, 33, 62, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 136, 0.1);
+    border-radius: 16px;
+    opacity: 0;
+    transform: translateX(-20px);
+    animation: slideIn 0.5s ease forwards;
+    animation-delay: 0.3s;
   }
 
-  /* 标题样式 */
+  @keyframes slideIn {
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .title-container {
+    flex: 1;
+  }
+
+  /* Title styles */
   h1 {
     margin: 0;
     font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+
+  .subtitle {
+    font-size: 0.875rem;
+    color: #666;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Status indicator */
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #666;
+    transition: all 0.3s ease;
+  }
+
+  .status-indicator.running .status-dot {
+    background: #00ff88;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 0.8;
+    }
+  }
+
+  .status-text {
+    font-size: 0.875rem;
+    color: #888;
+    font-family: 'Courier New', monospace;
+  }
+
+  .status-indicator.running .status-text {
     color: #00ff88;
   }
 
-  /* VDF 可视化区域 */
+  /* Content grid layout */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  @media (max-width: 1024px) {
+    .content-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .left-column,
+  .right-column {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+
+  /* Glass card effect */
+  .glass-card {
+    background: rgba(22, 33, 62, 0.6);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 136, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInUp 0.6s ease forwards;
+  }
+
+  .glass-card:nth-child(1) { animation-delay: 0.4s; }
+  .glass-card:nth-child(2) { animation-delay: 0.5s; }
+  .glass-card:nth-child(3) { animation-delay: 0.6s; }
+  .glass-card:nth-child(4) { animation-delay: 0.7s; }
+
+  @keyframes fadeInUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Section title */
+  .section-title {
+    margin: 0 0 1rem 0;
+    font-size: 0.875rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* VDF visualization area */
   .vdf-section {
     display: flex;
     justify-content: center;
+    align-items: center;
+    min-height: 400px;
   }
 
-  /* 统计面板区域 */
+  /* Statistics panel area */
   .stats-section {
-    background: #16213e;
-    border-radius: 12px;
-    padding: 1.5rem;
+    background: rgba(22, 33, 62, 0.6);
   }
 
-  /* 控制按钮容器 */
+  /* Control button container */
   .controls {
     display: flex;
+    flex-direction: column;
     gap: 1rem;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  /* Generic button styles */
+  .btn {
+    display: flex;
+    align-items: center;
     justify-content: center;
-  }
-
-  /* 通用按钮样式 */
-  button {
-    padding: 0.75rem 2rem;
-    font-size: 1rem;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
     border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  /* 可用按钮样式 */
-  button:not(:disabled) {
-    background: #00ff88;
-    color: #1a1a2e;
-  }
-
-  /* 按钮悬停效果 */
-  button:not(:disabled):hover {
-    background: #00cc6a;
-  }
-
-  /* 禁用按钮样式 */
-  button:disabled {
-    background: #333;
-    color: #666;
-    cursor: not-allowed;
-  }
-
-  /* 事件日志区域 */
-  .events-section {
-    background: #16213e;
     border-radius: 12px;
-    padding: 1.5rem;
-    max-height: 300px;
-    overflow-y: auto;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    flex: 1;
+    min-width: 120px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .btn:not(:disabled):hover::before {
+    left: 100%;
+  }
+
+  .btn-icon {
+    font-size: 1rem;
+  }
+
+  /* Start button */
+  .btn-start:not(:disabled) {
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    color: #0a0a1a;
+    box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+  }
+
+  .btn-start:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+  }
+
+  .btn-start:not(:disabled):active {
+    transform: translateY(0);
+  }
+
+  /* Pause button */
+  .btn-pause:not(:disabled) {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #0a0a1a;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+  }
+
+  .btn-pause:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+  }
+
+  /* Resume button */
+  .btn-resume:not(:disabled) {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+  }
+
+  .btn-resume:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+  }
+
+  /* Disabled button styles */
+  .btn:disabled {
+    background: rgba(255, 255, 255, 0.05);
+    color: #444;
+    cursor: not-allowed;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Event log area */
+  .events-section {
+    flex: 1;
+    max-height: 400px;
+    overflow: hidden;
+  }
+
+  @media (max-width: 768px) {
+    .header-animate {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .title-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .button-group {
+      flex-direction: column;
+    }
+
+    .btn {
+      width: 100%;
+    }
   }
 </style>

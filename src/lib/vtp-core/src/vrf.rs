@@ -1,81 +1,81 @@
-//! VRF (Verifiable Random Function) 模块
+//! VRF (Verifiable Random Function) module.
 //!
-//! 实现了基于 ED25519 的可验证随机函数。
-//! VRF 允许持有私钥的一方生成一个可验证的随机值，
-//! 任何人都可以使用公钥验证该随机值的正确性。
+//! Implements a verifiable random function based on ED25519.
+//! A VRF allows a party holding the private key to generate a verifiable random value,
+//! and anyone can verify the correctness of that random value using the public key.
 //!
-//! # 算法说明
-//! 1. 生成密钥对：使用 ED25519 生成公私钥对
-//! 2. 证明生成：使用私钥对消息进行签名
-//! 3. 证明验证：使用公钥验证签名的有效性
+//! # Algorithm
+//! 1. Keypair generation: Generate an ED25519 public/private keypair
+//! 2. Proof generation: Sign a message using the private key
+//! 3. Proof verification: Verify the signature validity using the public key
 //!
-//! # 安全性
-//! - 基于 ED25519 椭圆曲线，提供 128 位安全级别
-//! - 签名不可伪造，除非知道私钥
-//! - 相同消息和私钥总是产生相同的签名（确定性）
+//! # Security
+//! - Based on the ED25519 elliptic curve, providing 128-bit security level
+//! - Signatures are unforgeable unless the private key is known
+//! - The same message and private key always produce the same signature (deterministic)
 
 use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
 
-/// VRF 密钥对结构体
+/// VRF keypair structure.
 ///
-/// 包含用于 VRF 计算的公钥和私钥。
-/// 密钥对通过 ED25519 算法生成。
+/// Contains the public and private keys used for VRF computation.
+/// The keypair is generated using the ED25519 algorithm.
 ///
-/// # 安全注意事项
-/// - 私钥应该安全存储，不应泄露
-/// - 公钥可以安全分享
-/// - 密钥对是一次性的，每次调用 `generate_keypair` 都会生成新的
+/// # Security Notes
+/// - The private key must be stored securely and must not be leaked
+/// - The public key can be safely shared
+/// - Keypairs are disposable; each call to `generate_keypair` generates a new one
 #[wasm_bindgen]
 pub struct VrfKeypair {
-    /// 公钥，32 字节，用于验证 VRF 证明
+    /// Public key, 32 bytes, used for verifying VRF proofs
     public_key: Vec<u8>,
 
-    /// 私钥，32 字节，用于生成 VRF 证明
+    /// Private key, 32 bytes, used for generating VRF proofs
     secret_key: Vec<u8>,
 }
 
 #[wasm_bindgen]
 impl VrfKeypair {
-    /// 获取公钥
+    /// Get the public key.
     ///
-    /// # 返回值
-    /// 返回 32 字节的公钥向量
+    /// # Returns
+    /// Returns a 32-byte public key vector.
     ///
-    /// # 注意
-    /// 每次调用都会克隆公钥，频繁调用可能影响性能
+    /// # Note
+    /// Each call clones the public key; frequent calls may impact performance.
     #[wasm_bindgen(getter)]
     pub fn public_key(&self) -> Vec<u8> {
         self.public_key.clone()
     }
 
-    /// 获取私钥
+    /// Get the private key.
     ///
-    /// # 返回值
-    /// 返回 32 字节的私钥向量
+    /// # Returns
+    /// Returns a 32-byte private key vector.
     ///
-    /// # 安全警告
-    /// 私钥应该安全存储，不应泄露给第三方
+    /// # Security Warning
+    /// The private key must be stored securely and must not be leaked to third parties.
     #[wasm_bindgen(getter)]
     pub fn secret_key(&self) -> Vec<u8> {
         self.secret_key.clone()
     }
 }
 
-/// 生成新的 VRF 密钥对
+/// Generate a new VRF keypair.
 ///
-/// 使用操作系统提供的随机数生成器生成 ED25519 密钥对。
+/// Generates an ED25519 keypair using the operating system's cryptographic random number generator.
 ///
-/// # 返回值
-/// 返回包含公钥和私钥的 VrfKeypair 结构体
+/// # Returns
+/// Returns a `VrfKeypair` struct containing the public and private keys.
 ///
-/// # 安全性
-/// - 使用 `OsRng` 确保随机数的密码学安全性
-/// - 生成的密钥对具有 128 位安全级别
+/// # Security
+/// - Uses `OsRng` to ensure cryptographic security of the random numbers
+/// - The generated keypair has a 128-bit security level
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::vrf::generate_keypair;
 /// let keypair = generate_keypair();
@@ -92,25 +92,25 @@ pub fn generate_keypair() -> VrfKeypair {
     }
 }
 
-/// 生成 VRF 证明
+/// Generate a VRF proof.
 ///
-/// 使用私钥对消息进行签名，生成可验证的随机证明。
+/// Signs a message using the private key to generate a verifiable random proof.
 ///
-/// # 参数
-/// - `secret_key`: 32 字节的私钥
-/// - `message`: 要签名的消息
+/// # Arguments
+/// - `secret_key`: 32-byte private key
+/// - `message`: The message to sign
 ///
-/// # 返回值
-/// 返回 64 字节的签名向量
+/// # Returns
+/// Returns a 64-byte signature vector.
 ///
-/// # 算法
-/// 1. 对消息进行 SHA256 哈希
-/// 2. 使用 ED25519 对哈希值进行签名
+/// # Algorithm
+/// 1. Compute SHA256 hash of the message
+/// 2. Sign the hash value using ED25519
 ///
 /// # Panics
-/// 如果 secret_key 长度不是 32 字节，会 panic
+/// Panics if `secret_key` length is not 32 bytes.
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::vrf::{generate_keypair, prove};
 /// let keypair = generate_keypair();
@@ -130,30 +130,30 @@ pub fn prove(secret_key: &[u8], message: &[u8]) -> Vec<u8> {
     signature.to_bytes().to_vec()
 }
 
-/// 验证 VRF 证明
+/// Verify a VRF proof.
 ///
-/// 使用公钥验证 VRF 证明的有效性。
+/// Verifies the validity of a VRF proof using the public key.
 ///
-/// # 参数
-/// - `public_key`: 32 字节的公钥
-/// - `message`: 原始消息
-/// - `proof`: 64 字节的签名
+/// # Arguments
+/// - `public_key`: 32-byte public key
+/// - `message`: The original message
+/// - `proof`: 64-byte signature
 ///
-/// # 返回值
-/// - `true`: 证明有效
-/// - `false`: 证明无效或验证失败
+/// # Returns
+/// - `true`: The proof is valid
+/// - `false`: The proof is invalid or verification failed
 ///
-/// # 算法
-/// 1. 对消息进行 SHA256 哈希
-/// 2. 使用 ED25519 验证签名
+/// # Algorithm
+/// 1. Compute SHA256 hash of the message
+/// 2. Verify the signature using ED25519
 ///
-/// # 错误处理
-/// 以下情况会返回 false：
-/// - 公钥格式无效
-/// - 签名格式无效
-/// - 签名与消息不匹配
+/// # Error Handling
+/// The following cases will return `false`:
+/// - Invalid public key format
+/// - Invalid signature format
+/// - Signature does not match the message
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::vrf::{generate_keypair, prove, verify};
 /// let keypair = generate_keypair();
@@ -186,11 +186,11 @@ mod tests {
     use super::*;
     use wasm_bindgen_test::*;
 
-    /// 测试密钥对生成
+    /// Test keypair generation.
     ///
-    /// 验证：
-    /// 1. 公钥长度为 32 字节
-    /// 2. 私钥长度为 32 字节
+    /// Verifies:
+    /// 1. Public key length is 32 bytes
+    /// 2. Private key length is 32 bytes
     #[wasm_bindgen_test]
     fn test_generate_keypair() {
         let keypair = generate_keypair();
@@ -198,11 +198,11 @@ mod tests {
         assert_eq!(keypair.secret_key().len(), 32);
     }
 
-    /// 测试 VRF 证明生成和验证
+    /// Test VRF proof generation and verification.
     ///
-    /// 验证：
-    /// 1. 证明生成成功
-    /// 2. 证明可以被正确验证
+    /// Verifies:
+    /// 1. Proof generation succeeds
+    /// 2. Proof can be correctly verified
     #[wasm_bindgen_test]
     fn test_prove_and_verify() {
         let keypair = generate_keypair();
@@ -215,10 +215,10 @@ mod tests {
         assert!(is_valid);
     }
 
-    /// 测试无效证明的验证
+    /// Test verification of an invalid proof.
     ///
-    /// 验证：
-    /// 1. 修改后的证明无法通过验证
+    /// Verifies:
+    /// 1. A tampered proof fails verification
     #[wasm_bindgen_test]
     fn test_invalid_proof() {
         let keypair = generate_keypair();
@@ -232,11 +232,11 @@ mod tests {
         assert!(!is_valid);
     }
 
-    /// 测试不同消息的证明
+    /// Test proofs for different messages.
     ///
-    /// 验证：
-    /// 1. 不同消息产生不同的证明
-    /// 2. 证明只能验证对应的消息
+    /// Verifies:
+    /// 1. Different messages produce different proofs
+    /// 2. A proof can only verify its corresponding message
     #[wasm_bindgen_test]
     fn test_different_messages() {
         let keypair = generate_keypair();

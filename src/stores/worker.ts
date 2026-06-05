@@ -1,25 +1,25 @@
 /**
- * Worker 状态管理模块
+ * Worker State Management Module
  *
- * 使用 Svelte Store 管理 Web Worker 的状态和事件。
- * 提供全局状态管理，供各组件订阅和更新。
+ * Manages Web Worker state and events using Svelte stores.
+ * Provides global state management that components can subscribe to and update.
  *
- * 主要功能：
- * 1. Worker 实例管理
- * 2. 计算状态跟踪
- * 3. 事件日志管理
- * 4. 进度计算
+ * Key features:
+ * 1. Worker instance management
+ * 2. Computation state tracking
+ * 3. Event log management
+ * 4. Progress calculation
  *
- * 使用示例：
+ * @example
  * ```typescript
  * import { workerState, addEvent } from '$stores/worker';
  *
- * // 订阅状态变化
+ * // Subscribe to state changes
  * workerState.subscribe(state => {
  *   console.log('Current step:', state.currentStep);
  * });
  *
- * // 添加事件
+ * // Add an event
  * addEvent({ type: 'info', message: 'Computation started' });
  * ```
  */
@@ -27,82 +27,83 @@
 import { writable, derived } from 'svelte/store';
 
 /**
- * VTP 事件接口
+ * VTP Event interface.
  *
- * 描述 VDF 计算过程中的事件
+ * Represents an event that occurs during a VDF computation session.
  */
 export interface VtpEvent {
-  /** 事件类型 */
+  /** The event type. */
   type: 'info' | 'checkpoint' | 'winner' | 'error';
 
-  /** 事件时间戳（Unix 毫秒） */
+  /** Event timestamp (Unix epoch milliseconds). */
   timestamp: number;
 
-  /** 事件消息 */
+  /** A human-readable description of the event. */
   message: string;
 }
 
 /**
- * Worker 状态接口
+ * Worker State interface.
  *
- * 描述 Web Worker 的当前状态
+ * Represents the current state of the Web Worker, including its
+ * runtime status, computation progress, and performance metrics.
  */
 export interface WorkerState {
-  /** 是否正在运行 */
+  /** Whether the worker is currently running a computation. */
   isRunning: boolean;
 
-  /** 是否已暂停 */
+  /** Whether the worker has been paused. */
   isPaused: boolean;
 
-  /** 当前已完成的 VDF 步数 */
+  /** The number of VDF steps completed so far. */
   currentStep: number;
 
-  /** 总步数目标 */
+  /** The total target number of VDF steps to compute. */
   totalSteps: number;
 
-  /** 当前计算速度（步/秒） */
+  /** The current computation speed (steps per second). */
   speed: number;
 
-  /** 在线时长（秒） */
+  /** The elapsed uptime of the worker (in seconds). */
   uptime: number;
 
-  /** 抽签次数 */
+  /** The total number of winning draws (VRF match events). */
   winnerCount: number;
 
-  /** 运气指数（百分比） */
+  /** The luck index as a percentage. */
   luckPercentage: number;
 
-  /** 节点公钥 */
+  /** The node's public key, or `null` if not yet initialized. */
   publicKey: Uint8Array | null;
 
-  /** 节点 ID */
+  /** The unique node identifier. */
   nodeId: string;
 }
 
 /**
- * Worker 实例 Store
+ * Worker Instance Store.
  *
- * 存储当前 Web Worker 实例的引用。
- * 用于向 Worker 发送控制命令。
+ * Holds a reference to the current {@link Worker} instance.
+ * Used to send control commands (start, pause, resume, stop) to the worker.
  */
 export const workerStore = writable<Worker | null>(null);
 
 /**
- * 事件日志 Store
+ * Event Log Store.
  *
- * 存储 VDF 计算过程中的事件列表。
- * 最多保留 50 条事件，自动移除旧事件。
+ * Stores the list of events generated during VDF computation.
+ * Automatically capped at a maximum of 50 entries; older events are removed.
  */
 export const events = writable<VtpEvent[]>([]);
 
 /**
- * Worker 状态 Store
+ * Worker State Store.
  *
- * 存储 Worker 的当前状态，包括：
- * - 运行状态
- * - 计算进度
- * - 性能指标
- * - 节点信息
+ * Stores the current state of the worker, including:
+ * - Runtime status (running / paused)
+ * - Computation progress (current step / total steps)
+ * - Performance metrics (speed, uptime)
+ * - Node information (public key, node ID)
  */
 export const workerState = writable<WorkerState>({
   isRunning: false,
@@ -118,10 +119,11 @@ export const workerState = writable<WorkerState>({
 });
 
 /**
- * 计算进度 Store（派生）
+ * Computation Progress Store (derived).
  *
- * 从 workerState 派生的计算进度值，范围 [0, 1]。
- * 用于进度条和进度环显示。
+ * A derived store that computes the current progress as a value in the
+ * range `[0, 1]`, based on the ratio of `currentStep` to `totalSteps`
+ * in {@link workerState}. Suitable for driving progress bars and progress rings.
  *
  * @example
  * ```typescript
@@ -138,11 +140,12 @@ export const progress = derived(workerState, ($state) => {
 });
 
 /**
- * 添加事件到事件日志
+ * Add an event to the event log.
  *
- * 将新事件添加到事件列表的开头，并自动限制列表长度。
+ * Prepends a new event to the event list and automatically trims the
+ * list to maintain a maximum of 50 entries.
  *
- * @param event - 要添加的事件（不包含时间戳）
+ * @param event - The event to add (the `timestamp` field is omitted and will be auto-populated).
  *
  * @example
  * ```typescript
@@ -150,32 +153,32 @@ export const progress = derived(workerState, ($state) => {
  * addEvent({ type: 'winner', message: '🎉 Winner at step 12345' });
  * ```
  *
- * @注意
- * - 时间戳会自动添加
- * - 事件列表最多保留 50 条
- * - 新事件添加到列表开头
+ * @note
+ * - The `timestamp` is automatically set to the current time
+ * - The event list is capped at a maximum of 50 entries
+ * - New events are prepended to the beginning of the list
  */
 export function addEvent(event: Omit<VtpEvent, 'timestamp'>) {
   events.update((current) => [{ ...event, timestamp: Date.now() }, ...current.slice(0, 49)]);
 }
 
 /**
- * 重置 Worker 状态
+ * Reset the Worker state to its initial values.
  *
- * 将所有状态重置为初始值，用于：
- * - 重新开始计算
- * - 清除错误状态
- * - 初始化应用
+ * Resets all state fields to their defaults. Commonly used when:
+ * - Restarting a computation
+ * - Clearing an error state
+ * - Initializing the application
  *
  * @example
  * ```typescript
  * resetWorkerState();
  * ```
  *
- * @注意
- * - 会清空所有事件日志
- * - 会重置所有计算状态
- * - 不会终止当前 Worker
+ * @note
+ * - This clears all event logs
+ * - This resets all computation state (step count, speed, etc.)
+ * - This does **not** terminate the current Worker instance
  */
 export function resetWorkerState() {
   workerState.set({

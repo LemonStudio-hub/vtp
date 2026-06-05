@@ -1,25 +1,26 @@
 /**
- * Worker 构建脚本
+ * Worker Build Script
  *
- * 使用 esbuild 将 TypeScript Worker 源码编译为浏览器可用的 JavaScript。
+ * Uses esbuild to compile the TypeScript Worker source code into
+ * browser-ready JavaScript.
  *
- * 功能：
- * 1. 将 TypeScript 编译为 JavaScript
- * 2. 打包所有依赖
- * 3. 生成 source map
- * 4. 生产环境自动压缩
+ * Features:
+ * 1. Compiles TypeScript to JavaScript
+ * 2. Bundles all dependencies
+ * 3. Generates source maps
+ * 4. Minifies in production environment
  *
- * 使用方法：
+ * Usage:
  * ```bash
  * npm run worker:build
  * ```
  *
- * 构建输出：
- * - static/worker.js - 编译后的 Worker 代码
- * - static/worker.js.map - Source map 文件
+ * Build output:
+ * - static/worker.js - Compiled Worker code
+ * - static/worker.js.map - Source map file
  *
- * 依赖：
- * - esbuild: 高性能 JavaScript/TypeScript 打包工具
+ * Dependencies:
+ * - esbuild: High-performance JavaScript/TypeScript bundler
  *
  * @module build-worker
  */
@@ -28,52 +29,52 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-// 获取当前文件路径（ES Module 环境）
+// Get the current file path (ES Module environment)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * 构建 Worker
+ * Build the Worker
  *
- * 使用 esbuild 编译和打包 Worker 源码。
+ * Compiles and bundles the Worker source code using esbuild.
  *
- * 配置说明：
- * - entryPoints: 入口文件路径
- * - bundle: 打包所有依赖到一个文件
- * - outfile: 输出文件路径
- * - format: 输出格式为 ES Module
- * - target: 目标环境为现代浏览器
- * - platform: 目标平台为浏览器
- * - sourcemap: 生成 source map 便于调试
- * - minify: 生产环境自动压缩
+ * Configuration:
+ * - entryPoints: Entry file path
+ * - bundle: Bundle all dependencies into a single file
+ * - outfile: Output file path
+ * - format: Output format as ES Module
+ * - target: Target environment is modern browsers
+ * - platform: Target platform is browser
+ * - sourcemap: Generate source maps for debugging
+ * - minify: Minify in production environment
  *
- * @throws {Error} 构建失败时抛出错误
+ * @throws {Error} Throws an error if the build fails
  */
 async function buildWorker() {
   try {
     await build({
-      // 入口文件：Worker TypeScript 源码
+      // Entry point: Worker TypeScript source file
       entryPoints: [join(__dirname, '../src/lib/worker/index.ts')],
 
-      // 打包所有依赖到单个文件
+      // Bundle all dependencies into a single file
       bundle: true,
 
-      // 输出文件路径
+      // Output file path
       outfile: join(__dirname, '../static/worker.js'),
 
-      // 输出格式：ES Module
+      // Output format: ES Module
       format: 'esm',
 
-      // 目标环境：现代浏览器
+      // Target environment: modern browsers
       target: 'esnext',
 
-      // 目标平台：浏览器
+      // Target platform: browser
       platform: 'browser',
 
-      // 生成 source map 便于调试
+      // Generate source maps for debugging
       sourcemap: true,
 
-      // 生产环境自动压缩
+      // Minify in production environment
       minify: process.env.NODE_ENV === 'production'
     });
 
@@ -84,5 +85,5 @@ async function buildWorker() {
   }
 }
 
-// 执行构建
+// Execute the build
 buildWorker();

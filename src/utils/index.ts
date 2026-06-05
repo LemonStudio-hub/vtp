@@ -1,15 +1,15 @@
 /**
- * 工具函数模块
+ * Utility Functions Module
  *
- * 提供常用的工具函数，包括：
- * - 数字格式化
- * - 字节格式化
- * - 时间格式化
- * - ID 生成
- * - 异步工具
- * - 函数防抖
+ * Provides commonly used utility functions, including:
+ * - Number formatting
+ * - Byte formatting
+ * - Time formatting
+ * - ID generation
+ * - Async utilities
+ * - Function debouncing
  *
- * 使用示例：
+ * @example
  * ```typescript
  * import { formatBytes, formatTime, generateNodeId } from '$utils';
  *
@@ -20,12 +20,13 @@
  */
 
 /**
- * 格式化字节数
+ * Format a byte count into a human-readable string.
  *
- * 将字节数转换为人类可读的格式，自动选择合适的单位。
+ * Converts a byte count to a human-readable format, automatically selecting
+ * the most appropriate unit (B, KB, MB, or GB).
  *
- * @param bytes - 字节数
- * @returns 格式化后的字符串
+ * @param bytes - The number of bytes to format.
+ * @returns A formatted string with the appropriate unit suffix.
  *
  * @example
  * ```typescript
@@ -35,10 +36,10 @@
  * formatBytes(1073741824) // "1 GB"
  * ```
  *
- * @注意
- * - 使用 1024 作为基数（二进制）
- * - 最大单位为 GB
- * - 保留两位小数
+ * @note
+ * - Uses 1024 as the base (binary / IEC standard)
+ * - Maximum unit is GB
+ * - Fractional values are rounded to two decimal places
  */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -49,12 +50,13 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * 格式化数字
+ * Format a number using locale-specific thousands separators.
  *
- * 将数字转换为本地化格式，添加千位分隔符。
+ * Converts a number to a locale-formatted string with appropriate
+ * grouping separators (e.g., commas in English locales).
  *
- * @param num - 要格式化的数字
- * @returns 格式化后的字符串
+ * @param num - The number to format.
+ * @returns A locale-formatted string representation of the number.
  *
  * @example
  * ```typescript
@@ -62,21 +64,22 @@ export function formatBytes(bytes: number): string {
  * formatNumber(1234.567) // "1,234.567"
  * ```
  *
- * @注意
- * - 使用当前环境的本地化设置
- * - 保留原始精度
+ * @note
+ * - Uses the runtime environment's locale settings
+ * - Preserves the original precision of the number
  */
 export function formatNumber(num: number): string {
   return num.toLocaleString();
 }
 
 /**
- * 格式化速度
+ * Format a speed value into a human-readable string.
  *
- * 将速度值（步/秒）转换为人类可读的格式，自动选择合适的单位。
+ * Converts a speed value (in steps per second) to a compact, human-readable
+ * format, automatically selecting the most appropriate unit suffix (M, K, or raw).
  *
- * @param speed - 速度值（步/秒）
- * @returns 格式化后的字符串
+ * @param speed - The speed value in steps per second.
+ * @returns A formatted string with the appropriate unit suffix.
  *
  * @example
  * ```typescript
@@ -85,11 +88,11 @@ export function formatNumber(num: number): string {
  * formatSpeed(500) // "500"
  * ```
  *
- * @注意
- * - >= 1,000,000 使用 M（百万）
- * - >= 1,000 使用 K（千）
- * - 其他使用原始值
- * - 保留一位小数
+ * @note
+ * - Values >= 1,000,000 use "M" (millions)
+ * - Values >= 1,000 use "K" (thousands)
+ * - All other values are displayed as-is
+ * - Fractional values are rounded to one decimal place
  */
 export function formatSpeed(speed: number): string {
   if (speed >= 1000000) {
@@ -101,12 +104,13 @@ export function formatSpeed(speed: number): string {
 }
 
 /**
- * 格式化时间
+ * Format a duration in seconds to an HH:MM:SS time string.
  *
- * 将秒数转换为 HH:MM:SS 格式。
+ * Converts a total number of seconds into a formatted time string
+ * with hours, minutes, and seconds components.
  *
- * @param seconds - 秒数
- * @returns 格式化后的时间字符串
+ * @param seconds - The total number of seconds to format.
+ * @returns A formatted time string in "HH:MM:SS" format.
  *
  * @example
  * ```typescript
@@ -115,9 +119,9 @@ export function formatSpeed(speed: number): string {
  * formatTime(3661) // "01:01:01"
  * ```
  *
- * @注意
- * - 每个部分使用两位数字，不足补零
- * - 支持超过 24 小时的时间
+ * @note
+ * - Each component is zero-padded to two digits
+ * - Supports durations exceeding 24 hours (no day rollover)
  */
 export function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -127,21 +131,22 @@ export function formatTime(seconds: number): string {
 }
 
 /**
- * 生成节点 ID
+ * Generate a random node ID.
  *
- * 生成一个 8 位的十六进制节点 ID。
+ * Generates an 8-character hexadecimal string suitable for use as a
+ * lightweight node identifier.
  *
- * @returns 8 位十六进制字符串
+ * @returns An 8-character lowercase hexadecimal string.
  *
  * @example
  * ```typescript
  * generateNodeId() // "a1b2c3d4"
- * generateNodeId() // "e5f6g7h8"
+ * generateNodeId() // "e5f6a7b8"
  * ```
  *
- * @注意
- * - 使用 Math.random()，不适合密码学用途
- * - 生成的 ID 可能重复（概率极低）
+ * @note
+ * - Uses {@link Math.random()} internally; **not** cryptographically secure
+ * - Generated IDs may collide, though the probability is extremely low
  */
 export function generateNodeId(): string {
   const chars = '0123456789abcdef';
@@ -153,12 +158,14 @@ export function generateNodeId(): string {
 }
 
 /**
- * 异步休眠
+ * Asynchronously pause execution for a specified duration.
  *
- * 返回一个 Promise，在指定毫秒后 resolve。
+ * Returns a {@link Promise} that resolves after the given number of
+ * milliseconds. Commonly used with `await` for introducing delays in
+ * async workflows.
  *
- * @param ms - 休眠时间（毫秒）
- * @returns Promise<void>
+ * @param ms - The number of milliseconds to sleep.
+ * @returns A `Promise<void>` that resolves after the specified delay.
  *
  * @example
  * ```typescript
@@ -169,22 +176,26 @@ export function generateNodeId(): string {
  * }
  * ```
  *
- * @注意
- * - 使用 setTimeout 实现
- * - 可以使用 await 等待
+ * @note
+ * - Implemented using `setTimeout`
+ * - Can be awaited to pause execution within async functions
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * 函数防抖
+ * Create a debounced version of a function.
  *
- * 创建一个防抖函数，在指定时间内多次调用只执行最后一次。
+ * Returns a new function that delays invoking the provided function until
+ * after the specified wait time has elapsed since the last invocation.
+ * Repeated calls within the wait period reset the timer, ensuring only
+ * the final call is executed.
  *
- * @param func - 要防抖的函数
- * @param wait - 等待时间（毫秒）
- * @returns 防抖后的函数
+ * @typeParam T - The type of the function to debounce.
+ * @param func - The function to debounce.
+ * @param wait - The debounce delay in milliseconds.
+ * @returns A debounced wrapper function with the same parameters as `func`.
  *
  * @example
  * ```typescript
@@ -192,16 +203,16 @@ export function sleep(ms: number): Promise<void> {
  *   console.log('Searching:', query);
  * }, 300);
  *
- * // 快速输入时，只在停止输入 300ms 后执行一次
+ * // During rapid input, only the last call is executed after 300ms of inactivity
  * debouncedSearch('a');
  * debouncedSearch('ab');
  * debouncedSearch('abc');
  * ```
  *
- * @注意
- * - 使用 setTimeout 实现
- * - 每次调用会重置计时器
- * - 保留最后一次调用的参数
+ * @note
+ * - Uses `setTimeout` internally
+ * - Each invocation resets the debounce timer
+ * - The arguments from the last invocation are preserved and used when the timer fires
  */
 export function debounce<T extends (...args: any[]) => any>(
   func: T,

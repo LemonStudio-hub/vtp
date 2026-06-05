@@ -1,26 +1,26 @@
-//! 工具函数模块
+//! Utility functions module.
 //!
-//! 提供常用的工具函数，包括：
-//! - 哈希计算
-//! - 字节与十六进制转换
-//! - 随机数生成
+//! Provides commonly used utility functions, including:
+//! - Hash computation
+//! - Byte and hexadecimal conversion
+//! - Random number generation
 //!
-//! 这些函数主要用于辅助 VDF 和 VRF 的实现。
+//! These functions primarily serve as helpers for VDF and VRF implementations.
 
 use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
 
-/// 计算字节数据的 SHA256 哈希
+/// Compute the SHA256 hash of byte data.
 ///
-/// 对输入数据进行 SHA256 哈希计算，返回 32 字节的哈希值。
+/// Performs SHA256 hashing on the input data and returns a 32-byte hash value.
 ///
-/// # 参数
-/// - `data`: 要哈希的字节数据
+/// # Arguments
+/// - `data`: The byte data to hash
 ///
-/// # 返回值
-/// 返回 32 字节的哈希向量
+/// # Returns
+/// Returns a 32-byte hash vector.
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::utils::hash_bytes;
 /// let data = b"hello world";
@@ -28,8 +28,8 @@ use wasm_bindgen::prelude::*;
 /// assert_eq!(hash.len(), 32);
 /// ```
 ///
-/// # 性能
-/// SHA256 计算速度约为 200-500MB/s（取决于硬件）
+/// # Performance
+/// SHA256 computation speed is approximately 200-500MB/s (depending on hardware).
 #[wasm_bindgen]
 pub fn hash_bytes(data: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
@@ -37,17 +37,17 @@ pub fn hash_bytes(data: &[u8]) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
-/// 将字节数组转换为十六进制字符串
+/// Convert a byte array to a hexadecimal string.
 ///
-/// 将每个字节转换为两位十六进制表示，使用小写字母。
+/// Converts each byte to a two-digit hexadecimal representation using lowercase letters.
 ///
-/// # 参数
-/// - `bytes`: 要转换的字节数组
+/// # Arguments
+/// - `bytes`: The byte array to convert
 ///
-/// # 返回值
-/// 返回十六进制字符串
+/// # Returns
+/// Returns a hexadecimal string.
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::utils::bytes_to_hex;
 /// let bytes = vec![0x00, 0x0f, 0xff];
@@ -55,32 +55,32 @@ pub fn hash_bytes(data: &[u8]) -> Vec<u8> {
 /// assert_eq!(hex, "000fff");
 /// ```
 ///
-/// # 格式
-/// - 每个字节使用两位十六进制表示
-/// - 使用小写字母 (a-f)
-/// - 不包含 0x 前缀
+/// # Format
+/// - Each byte uses a two-digit hexadecimal representation
+/// - Uses lowercase letters (a-f)
+/// - Does not include the `0x` prefix
 #[wasm_bindgen]
 pub fn bytes_to_hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
-/// 将十六进制字符串转换为字节数组
+/// Convert a hexadecimal string to a byte array.
 ///
-/// 解析十六进制字符串，返回对应的字节数组。
+/// Parses a hexadecimal string and returns the corresponding byte array.
 ///
-/// # 参数
-/// - `hex`: 十六进制字符串
+/// # Arguments
+/// - `hex`: The hexadecimal string
 ///
-/// # 返回值
-/// - `Ok(Vec<u8>)`: 成功转换的字节数组
-/// - `Err(JsValue)`: 转换失败的错误信息
+/// # Returns
+/// - `Ok(Vec<u8>)`: The successfully converted byte array
+/// - `Err(JsValue)`: Error message when conversion fails
 ///
-/// # 错误
-/// 以下情况会返回错误：
-/// - 字符串长度不是偶数
-/// - 包含非十六进制字符
+/// # Errors
+/// The following cases will return an error:
+/// - String length is not even
+/// - Contains non-hexadecimal characters
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::utils::hex_to_bytes;
 /// let hex = "000fff";
@@ -88,9 +88,9 @@ pub fn bytes_to_hex(bytes: &[u8]) -> String {
 /// assert_eq!(bytes, vec![0x00, 0x0f, 0xff]);
 /// ```
 ///
-/// # 注意
-/// - 输入字符串不区分大小写
-/// - 不接受 0x 前缀
+/// # Note
+/// - Input string is case-insensitive
+/// - Does not accept the `0x` prefix
 #[wasm_bindgen]
 pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, JsValue> {
     if hex.len() % 2 != 0 {
@@ -107,30 +107,30 @@ pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, JsValue> {
     Ok(bytes)
 }
 
-/// 生成指定长度的随机字节数组
+/// Generate a random byte array of the specified length.
 ///
-/// 使用操作系统提供的密码学安全随机数生成器生成随机字节。
+/// Generates random bytes using the operating system's cryptographically secure random number generator.
 ///
-/// # 参数
-/// - `length`: 要生成的字节数量
+/// # Arguments
+/// - `length`: The number of bytes to generate
 ///
-/// # 返回值
-/// 返回指定长度的随机字节数组
+/// # Returns
+/// Returns a random byte array of the specified length.
 ///
-/// # 安全性
-/// - 使用 `OsRng` 确保随机数的密码学安全性
-/// - 生成的随机数不可预测
-/// - 适合用于密钥生成和随机挑战
+/// # Security
+/// - Uses `OsRng` to ensure cryptographic security of the random numbers
+/// - Generated random numbers are unpredictable
+/// - Suitable for key generation and random challenges
 ///
-/// # 示例
+/// # Examples
 /// ```rust
 /// use vtp_core::utils::generate_random_bytes;
 /// let random_bytes = generate_random_bytes(32);
 /// assert_eq!(random_bytes.len(), 32);
 /// ```
 ///
-/// # 性能
-/// 生成速度取决于操作系统的随机数生成器实现
+/// # Performance
+/// Generation speed depends on the operating system's random number generator implementation.
 #[wasm_bindgen]
 pub fn generate_random_bytes(length: u32) -> Vec<u8> {
     use rand::RngCore;
@@ -144,11 +144,11 @@ mod tests {
     use super::*;
     use wasm_bindgen_test::*;
 
-    /// 测试 SHA256 哈希计算
+    /// Test SHA256 hash computation.
     ///
-    /// 验证：
-    /// 1. 输出长度为 32 字节
-    /// 2. 相同输入产生相同输出
+    /// Verifies:
+    /// 1. Output length is 32 bytes
+    /// 2. Same input produces the same output
     #[wasm_bindgen_test]
     fn test_hash_bytes() {
         let data = b"test data";
@@ -156,11 +156,11 @@ mod tests {
         assert_eq!(hash.len(), 32);
     }
 
-    /// 测试字节到十六进制转换
+    /// Test byte to hexadecimal conversion.
     ///
-    /// 验证：
-    /// 1. 正确转换各种字节值
-    /// 2. 使用小写字母
+    /// Verifies:
+    /// 1. Correctly converts various byte values
+    /// 2. Uses lowercase letters
     #[wasm_bindgen_test]
     fn test_bytes_to_hex() {
         let bytes = vec![0x00, 0x0f, 0xff];
@@ -168,11 +168,11 @@ mod tests {
         assert_eq!(hex, "000fff");
     }
 
-    /// 测试十六进制到字节转换
+    /// Test hexadecimal to byte conversion.
     ///
-    /// 验证：
-    /// 1. 正确解析十六进制字符串
-    /// 2. 返回正确的字节数组
+    /// Verifies:
+    /// 1. Correctly parses hexadecimal strings
+    /// 2. Returns the correct byte array
     #[wasm_bindgen_test]
     fn test_hex_to_bytes() {
         let hex = "000fff";
@@ -180,22 +180,22 @@ mod tests {
         assert_eq!(bytes, vec![0x00, 0x0f, 0xff]);
     }
 
-    /// 测试无效十六进制字符串
+    /// Test invalid hexadecimal strings.
     ///
-    /// 验证：
-    /// 1. 奇数长度字符串返回错误
-    /// 2. 非十六进制字符返回错误
+    /// Verifies:
+    /// 1. Odd-length strings return an error
+    /// 2. Non-hexadecimal characters return an error
     #[wasm_bindgen_test]
     fn test_invalid_hex() {
         let result = hex_to_bytes("invalid");
         assert!(result.is_err());
     }
 
-    /// 测试随机字节生成
+    /// Test random byte generation.
     ///
-    /// 验证：
-    /// 1. 生成正确长度的字节数组
-    /// 2. 多次生成的结果不同
+    /// Verifies:
+    /// 1. Generates byte arrays of the correct length
+    /// 2. Multiple generations produce different results
     #[wasm_bindgen_test]
     fn test_generate_random_bytes() {
         let bytes1 = generate_random_bytes(32);

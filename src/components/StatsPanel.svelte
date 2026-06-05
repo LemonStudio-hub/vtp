@@ -1,17 +1,17 @@
 <!--
-  StatsPanel 组件
+  StatsPanel Component
 
-  显示 VDF 计算的实时统计数据，包括：
-  - 实时速度（步/秒）
-  - 累计步数
-  - 在线时长
-  - 抽签次数
-  - 运气指数
+  Displays real-time statistics for VDF computation, including:
+  - Real-time speed (steps/sec)
+  - Cumulative steps
+  - Uptime
+  - Draw count
+  - Luck index
 
-  数据来源：
-  通过 Svelte Store 订阅 workerState 获取实时数据
+  Data source:
+  Subscribes to workerState via Svelte Store for real-time data
 
-  使用示例：
+  Usage example:
   ```svelte
   <StatsPanel />
   ```
@@ -20,28 +20,69 @@
 <script lang="ts">
   import { workerState } from '$stores/worker';
 
+  /** Animated values for smooth transitions */
+  let displaySpeed = 0;
+  let displayStep = 0;
+  let displayUptime = 0;
+
   /**
-   * 格式化数字显示
+   * Reactive animation updates
    *
-   * 将数字转换为本地化格式，添加千位分隔符。
+   * Smoothly interpolates displayed values towards actual values
+   */
+  $: {
+    animateValue('speed', $workerState.speed);
+    animateValue('step', $workerState.currentStep);
+    animateValue('uptime', $workerState.uptime);
+  }
+
+  /**
+   * Animate a numeric value
    *
-   * @param num - 要格式化的数字
-   * @returns 格式化后的字符串
+   * Smoothly transitions from current displayed value to target value
+   *
+   * @param key - The value key to animate
+   * @param target - The target value
+   */
+  function animateValue(key: string, target: number) {
+    const current = key === 'speed' ? displaySpeed : key === 'step' ? displayStep : displayUptime;
+    const diff = target - current;
+
+    if (Math.abs(diff) < 1) {
+      if (key === 'speed') displaySpeed = target;
+      else if (key === 'step') displayStep = target;
+      else displayUptime = target;
+      return;
+    }
+
+    const step = diff * 0.1;
+    requestAnimationFrame(() => {
+      if (key === 'speed') displaySpeed += step;
+      else if (key === 'step') displayStep += step;
+      else displayUptime += step;
+    });
+  }
+
+  /**
+   * Format a number with locale-specific thousands separators
+   *
+   * @param num - The number to format
+   * @returns Formatted string
    *
    * @example
    * formatNumber(1234567) // "1,234,567"
    */
   function formatNumber(num: number): string {
-    return num.toLocaleString();
+    return Math.floor(num).toLocaleString();
   }
 
   /**
-   * 格式化速度显示
+   * Format speed value to human-readable format
    *
-   * 将速度值转换为人类可读的格式，自动选择合适的单位。
+   * Automatically selects appropriate unit (M, K, or raw).
    *
-   * @param speed - 速度值（步/秒）
-   * @returns 格式化后的字符串
+   * @param speed - Speed value in steps/second
+   * @returns Formatted string
    *
    * @example
    * formatSpeed(1500000) // "1.5M"
@@ -58,12 +99,10 @@
   }
 
   /**
-   * 格式化时间显示
+   * Format time in seconds to HH:MM:SS format
    *
-   * 将秒数转换为 HH:MM:SS 格式。
-   *
-   * @param seconds - 秒数
-   * @returns 格式化后的时间字符串
+   * @param seconds - Time in seconds
+   * @returns Formatted time string
    *
    * @example
    * formatTime(3661) // "01:01:01"
@@ -74,75 +113,182 @@
     const s = Math.floor(seconds % 60);
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
+
+  /**
+   * Get luck color based on percentage
+   *
+   * Returns appropriate color class based on luck value
+   */
+  function getLuckColor(percent: number): string {
+    if (percent >= 120) return 'luck-excellent';
+    if (percent >= 100) return 'luck-good';
+    if (percent >= 80) return 'luck-normal';
+    return 'luck-low';
+  }
 </script>
 
-<!-- 统计面板网格布局 -->
+<!-- Stats panel grid layout -->
 <div class="stats-grid">
-  <!-- 实时速度 -->
+  <!-- Real-time speed -->
   <div class="stat-item">
-    <label>实时速度</label>
-    <span class="value">{formatSpeed($workerState.speed)} 步/秒</span>
+    <div class="stat-header">
+      <span class="stat-icon">⚡</span>
+      <span class="label">Speed</span>
+    </div>
+    <span class="value speed-value">
+      {formatSpeed(displaySpeed)}
+      <span class="unit">steps/s</span>
+    </span>
   </div>
 
-  <!-- 累计步数 -->
+  <!-- Cumulative steps -->
   <div class="stat-item">
-    <label>累计步数</label>
-    <span class="value">{formatNumber($workerState.currentStep)}</span>
+    <div class="stat-header">
+      <span class="stat-icon">📊</span>
+      <span class="label">Total Steps</span>
+    </div>
+    <span class="value">{formatNumber(displayStep)}</span>
   </div>
 
-  <!-- 在线时长 -->
+  <!-- Uptime -->
   <div class="stat-item">
-    <label>在线时长</label>
-    <span class="value">{formatTime($workerState.uptime)}</span>
+    <div class="stat-header">
+      <span class="stat-icon">⏱</span>
+      <span class="label">Uptime</span>
+    </div>
+    <span class="value mono">{formatTime(displayUptime)}</span>
   </div>
 
-  <!-- 抽签次数 -->
+  <!-- Draw count -->
   <div class="stat-item">
-    <label>抽签次数</label>
+    <div class="stat-header">
+      <span class="stat-icon">🎯</span>
+      <span class="label">Draws</span>
+    </div>
     <span class="value">{formatNumber($workerState.winnerCount)}</span>
   </div>
 
-  <!-- 运气指数 -->
-  <div class="stat-item">
-    <label>运气指数</label>
-    <span class="value">
+  <!-- Luck index -->
+  <div class="stat-item luck-stat">
+    <div class="stat-header">
+      <span class="stat-icon">🍀</span>
+      <span class="label">Luck Index</span>
+    </div>
+    <span class="value {getLuckColor($workerState.luckPercentage)}">
       {$workerState.luckPercentage.toFixed(0)}%
-      <!-- 超过100%显示四叶草图标 -->
       {#if $workerState.luckPercentage > 100}
-        🍀
+        <span class="luck-badge">Lucky</span>
       {/if}
     </span>
   </div>
 </div>
 
 <style>
-  /* 统计网格布局 */
+  /* Stats grid layout */
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.25rem;
   }
 
-  /* 统计项容器 */
+  /* Stat item container */
   .stat-item {
     display: flex;
     flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+  }
+
+  .stat-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(0, 255, 136, 0.1);
+    transform: translateY(-2px);
+  }
+
+  /* Stat header */
+  .stat-header {
+    display: flex;
+    align-items: center;
     gap: 0.5rem;
   }
 
-  /* 标签样式 */
-  label {
-    font-size: 0.875rem;
-    color: #888;
+  .stat-icon {
+    font-size: 1rem;
+  }
+
+  /* Label styles */
+  .label {
+    font-size: 0.75rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* Value styles */
+  .value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #00ff88;
+    font-family: 'Courier New', monospace;
+    line-height: 1;
+  }
+
+  .value.mono {
+    font-size: 1.5rem;
+  }
+
+  .unit {
+    font-size: 0.75rem;
+    color: #666;
+    margin-left: 0.25rem;
+  }
+
+  .speed-value {
+    display: flex;
+    align-items: baseline;
+  }
+
+  /* Luck colors */
+  .luck-excellent {
+    color: #10b981;
+  }
+
+  .luck-good {
+    color: #00ff88;
+  }
+
+  .luck-normal {
+    color: #f59e0b;
+  }
+
+  .luck-low {
+    color: #ef4444;
+  }
+
+  .luck-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    background: rgba(0, 255, 136, 0.2);
+    color: #00ff88;
+    border-radius: 4px;
+    margin-left: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
-  /* 数值样式 */
-  .value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: #00ff88;
-    font-family: 'Courier New', monospace;
+  @media (max-width: 768px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .value {
+      font-size: 1.25rem;
+    }
   }
 </style>

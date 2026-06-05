@@ -1,168 +1,195 @@
 /**
- * VTP Web Worker 主模块
+ * VTP Web Worker Main Module
  *
- * 负责在后台线程中执行 VDF 计算任务。
- * 通过 postMessage 与主线程进行通信。
+ * Executes VDF computation tasks in a background thread.
+ * Communicates with the main thread via postMessage.
  *
- * 主要功能：
- * 1. 接收主线程的控制命令（start/pause/resume/stop）
- * 2. 执行 VDF 批量计算
- * 3. 定期报告计算进度
- * 4. 发送心跳包保持连接
- * 5. 报告中签事件和错误
+ * Key features:
+ * 1. Receives control commands from main thread (start/pause/resume/stop)
+ * 2. Executes VDF batch computations
+ * 3. Periodically reports computation progress
+ * 4. Sends heartbeat packets to maintain connection
+ * 5. Reports winning events and errors
  *
- * 通信协议：
- * - 接收：WorkerMessage（包含命令和参数）
- * - 发送：ProgressMessage | WinnerMessage | HeartbeatMessage | ErrorMessage
+ * Communication protocol:
+ * - Receive: WorkerMessage (contains commands and parameters)
+ * - Send: ProgressMessage | WinnerMessage | HeartbeatMessage | ErrorMessage
  *
- * 性能考虑：
- * - 使用时间片机制避免阻塞浏览器
- * - 批量处理减少通信开销
- * - 定期内存监控防止泄漏
+ * Performance considerations:
+ * - Uses time-slicing mechanism to avoid blocking the browser
+ * - Batch processing reduces communication overhead
+ * - Periodic memory monitoring prevents leaks
  */
-
-import { Session } from '../vtp-core/types/vtp_core';
-import type { BatchResult } from '../vtp-core/types/vtp_core';
 
 /**
- * Worker 消息接口
+ * Import the WASM module type definitions only.
+ * The actual WASM module is loaded at runtime via dynamic import.
+ */
+import type { Session as SessionType } from '../vtp-core/types/vtp_core';
+
+/**
+ * Runtime reference to the Session class, obtained after WASM initialization.
+ */
+let Session: typeof SessionType;
+
+/**
+ * Dynamically load and initialize the WASM module.
+ * Uses a runtime fetch + eval approach to bypass Vite's import analysis
+ * which cannot parse the Rust doc comments in the wasm-pack generated JS.
+ */
+async function loadWasm(): Promise<void> {
+  const response = await fetch('/wasm/vtp_core.js');
+  const wasmCode = await response.text();
+
+  // Create a blob URL and import the module
+  const blob = new Blob([wasmCode], { type: 'application/javascript' });
+  const blobUrl = URL.createObjectURL(blob);
+  const wasmModule = await import(/* @vite-ignore */ blobUrl);
+  URL.revokeObjectURL(blobUrl);
+
+  // Initialize the WASM binary
+  await wasmModule.default();
+
+  // Extract the Session class
+  Session = wasmModule.Session;
+}
+
+/**
+ * Worker Message Interface
  *
- * 主线程发送给 Worker 的控制消息
+ * Control messages sent from main thread to Worker
  */
 interface WorkerMessage {
-  /** 命令类型：start/pause/resume/stop */
+  /** Command type: start/pause/resume/stop */
   type: string;
 
-  /** VDF 计算种子，至少 32 字节 */
+  /** VDF computation seed, minimum 32 bytes */
   seed?: Uint8Array;
 
-  /** VDF 总步数目标 */
+  /** Total VDF steps target */
   total?: number;
 
-  /** VRF 抽签间隔 */
+  /** VRF draw interval */
   k?: number;
 
-  /** VRF 阈值，32 字节 */
+  /** VRF threshold, 32 bytes */
   tau?: Uint8Array;
 
-  /** 检查点间隔 */
+  /** Checkpoint interval */
   checkpointInterval?: number;
 
-  /** 每批最大步数 */
+  /** Maximum steps per batch */
   maxSteps?: number;
 }
 
 /**
- * 进度消息接口
+ * Progress Message Interface
  *
- * Worker 定期发送给主线程的进度报告
+ * Periodic progress report sent from Worker to main thread
  */
 interface ProgressMessage {
   type: 'progress';
 
-  /** 当前已完成的 VDF 步数 */
+  /** Current completed VDF steps */
   step: number;
 
-  /** 当前计算速度（步/秒） */
+  /** Current computation speed (steps/sec) */
   speed: number;
 
-  /** 当前内存使用量（字节） */
+  /** Current memory usage (bytes) */
   memoryUsage: number;
 }
 
 /**
- * 批量计算结果类型
+ * Batch Result Type
  *
- * 对应 Rust 中的 BatchResult 枚举
+ * Corresponds to BatchResult enum in Rust
  */
 type BatchResultType = 'Progress' | 'Winner' | 'Finished' | 'Error';
 
 /**
- * 中签消息接口
+ * Winner Message Interface
  *
- * 当发现中签时发送给主线程的消息
+ * Sent to main thread when a winning draw is discovered
  */
 interface WinnerMessage {
   type: 'winner';
 
-  /** 中签步数 */
+  /** Winning step number */
   step: number;
 
-  /** VRF 证明 */
+  /** VRF proof */
   proof: Uint8Array;
 }
 
 /**
- * 心跳消息接口
+ * Heartbeat Message Interface
  *
- * 定期发送给主线程保持连接活跃
+ * Periodically sent to main thread to keep connection alive
  */
 interface HeartbeatMessage {
   type: 'heartbeat';
 
-  /** 消息时间戳 */
+  /** Message timestamp */
   timestamp: number;
 
-  /** 当前状态：running/paused */
+  /** Current status: running/paused */
   status: string;
 }
 
 /**
- * 错误消息接口
+ * Error Message Interface
  *
- * 发生错误时发送给主线程的消息
+ * Sent to main thread when an error occurs
  */
 interface ErrorMessage {
   type: 'error';
 
-  /** 错误代码 */
+  /** Error code for programmatic handling */
   code: string;
 
-  /** 错误描述 */
+  /** Error description for display */
   message: string;
 
-  /** 是否可恢复 */
+  /** Whether the error is recoverable */
   recoverable: boolean;
 }
 
-/** Worker 响应类型联合 */
-type WorkerResponse = ProgressMessage | WinnerMessage | HeartbeatMessage | ErrorMessage;
+// ==================== State Variables ====================
 
-// ==================== 状态变量 ====================
-
-/** 当前 VDF 会话实例 */
+/** Current VDF session instance */
 let session: Session | null = null;
 
-/** 是否正在运行 */
+/** Whether currently running */
 let isRunning = false;
 
-/** 是否已暂停 */
+/** Whether paused */
 let isPaused = false;
 
-/** 计算开始时间 */
+/** Computation start time */
 let startTime = 0;
 
-/** 上次报告时间 */
+/** Last report time */
 let lastReportTime = 0;
 
-/** 当前步数 */
+/** Current step count */
 let stepCount = 0;
 
-/** 当前计算速度 */
+/** Current computation speed */
 let speed = 0;
 
-/** 心跳定时器 */
+/** Heartbeat timer */
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-// ==================== 消息处理 ====================
+// ==================== Message Handling ====================
 
 /**
- * 处理主线程发送的消息
+ * Handle messages from main thread
  *
- * 根据消息类型分发到对应的处理函数。
- * 支持的命令：start/pause/resume/stop
+ * Dispatches to corresponding handler functions based on message type.
+ * Supported commands: start/pause/resume/stop
  *
- * @param event - 消息事件，包含 WorkerMessage 数据
+ * @param event - Message event containing WorkerMessage data
  */
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   const { type, ...params } = event.data;
@@ -185,39 +212,44 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   }
 };
 
-// ==================== 命令处理函数 ====================
+// ==================== Command Handlers ====================
 
 /**
- * 处理 start 命令
+ * Handle start command
  *
- * 初始化 VDF 会话并开始计算。
+ * Initializes VDF session and begins computation.
  *
- * 工作流程：
- * 1. 验证参数完整性
- * 2. 清理旧会话
- * 3. 创建新 Session 实例
- * 4. 初始化状态变量
- * 5. 启动心跳
- * 6. 开始主循环
+ * Workflow:
+ * 1. Validate parameter completeness
+ * 2. Clean up old session
+ * 3. Create new Session instance
+ * 4. Initialize state variables
+ * 5. Start heartbeat
+ * 6. Begin main loop
  *
- * @param params - 包含 VDF 配置参数的 WorkerMessage
+ * @param params - WorkerMessage containing VDF configuration parameters
  */
 async function handleStart(params: Omit<WorkerMessage, 'type'>) {
   try {
     const { seed, total, k, tau, checkpointInterval } = params;
 
-    // 验证必需参数
+    // Validate required parameters
     if (!seed || !total || !k || !tau || !checkpointInterval) {
       sendError('INVALID_PARAMS', 'Missing required parameters', false);
       return;
     }
 
-    // 清理旧会话
+    // Load and initialize WASM module if not already done
+    if (!Session) {
+      await loadWasm();
+    }
+
+    // Clean up old session
     if (session) {
       session.free();
     }
 
-    // 创建新会话
+    // Create new session
     session = new Session(seed, total, k, tau, checkpointInterval);
     isRunning = true;
     isPaused = false;
@@ -225,13 +257,13 @@ async function handleStart(params: Omit<WorkerMessage, 'type'>) {
     lastReportTime = startTime;
     stepCount = 0;
 
-    // 通知主线程会话已启动
+    // Notify main thread that session has started
     self.postMessage({
       type: 'started',
       publicKey: session.public_key()
     });
 
-    // 启动心跳和主循环
+    // Start heartbeat and main loop
     startHeartbeat();
     runMainLoop();
   } catch (error) {
@@ -240,10 +272,10 @@ async function handleStart(params: Omit<WorkerMessage, 'type'>) {
 }
 
 /**
- * 处理 pause 命令
+ * Handle pause command
  *
- * 暂停 VDF 计算。
- * 暂停后主循环会停止执行，但会话状态保留。
+ * Pauses VDF computation.
+ * Main loop stops executing but session state is preserved.
  */
 function handlePause() {
   if (session && isRunning) {
@@ -254,10 +286,10 @@ function handlePause() {
 }
 
 /**
- * 处理 resume 命令
+ * Handle resume command
  *
- * 恢复 VDF 计算。
- * 从暂停点继续执行，重新启动心跳和主循环。
+ * Resumes VDF computation.
+ * Continues from pause point, restarts heartbeat and main loop.
  */
 function handleResume() {
   if (session && isRunning && isPaused) {
@@ -269,9 +301,9 @@ function handleResume() {
 }
 
 /**
- * 处理 stop 命令
+ * Handle stop command
  *
- * 停止 VDF 计算并清理资源。
+ * Stops VDF computation and cleans up resources.
  */
 function handleStop() {
   isRunning = false;
@@ -286,23 +318,23 @@ function handleStop() {
   self.postMessage({ type: 'stopped' });
 }
 
-// ==================== 核心计算循环 ====================
+// ==================== Core Computation Loop ====================
 
 /**
- * 主计算循环
+ * Main computation loop
  *
- * 持续执行 VDF 批量计算，直到会话完成或被暂停/停止。
+ * Continuously executes VDF batch computations until session completes or is paused/stopped.
  *
- * 性能优化策略：
- * 1. 批量处理：每次执行 BATCH_SIZE 步，减少函数调用开销
- * 2. 时间片控制：每轮计算不超过 TIME_SLICE_MS，避免阻塞浏览器
- * 3. 定期报告：每 REPORT_INTERVAL_MS 毫秒报告一次进度
- * 4. 错误恢复：捕获异常并延迟重试
+ * Performance optimization strategies:
+ * 1. Batch processing: Execute BATCH_SIZE steps per iteration to reduce function call overhead
+ * 2. Time-slicing: Each iteration不超过 TIME_SLICE_MS to avoid blocking the browser
+ * 3. Periodic reporting: Report progress every REPORT_INTERVAL_MS milliseconds
+ * 4. Error recovery: Catch exceptions and retry with delay
  *
- * 常量说明：
- * - BATCH_SIZE = 1000：每批处理步数
- * - TIME_SLICE_MS = 50：时间片长度（毫秒）
- * - REPORT_INTERVAL_MS = 1000：进度报告间隔（毫秒）
+ * Constants:
+ * - BATCH_SIZE = 1000: Steps per batch
+ * - TIME_SLICE_MS = 50: Time slice length (milliseconds)
+ * - REPORT_INTERVAL_MS = 1000: Progress report interval (milliseconds)
  */
 async function runMainLoop() {
   const BATCH_SIZE = 1000;
@@ -315,16 +347,16 @@ async function runMainLoop() {
     try {
       if (!session) break;
 
-      // 执行批量 VDF 计算
+      // Execute batch VDF computation
       const result = session.run_batch(BATCH_SIZE) as BatchResultType;
       stepCount = session.state().step;
 
-      // 计算并报告进度
+      // Calculate and report progress
       const now = Date.now();
       const elapsed = (now - lastReportTime) / 1000;
 
       if (elapsed >= REPORT_INTERVAL_MS / 1000) {
-        // 计算当前速度（步/秒）
+        // Calculate current speed (steps/sec)
         speed = (stepCount - (stepCount - BATCH_SIZE)) / elapsed;
 
         const progressMsg: ProgressMessage = {
@@ -338,7 +370,7 @@ async function runMainLoop() {
         lastReportTime = now;
       }
 
-      // 处理中签事件
+      // Handle winner event
       if (result === 'Winner') {
         const proof = session.get_checkpoint_data();
         const winnerMsg: WinnerMessage = {
@@ -349,39 +381,39 @@ async function runMainLoop() {
         self.postMessage(winnerMsg);
       }
 
-      // 处理完成事件
+      // Handle completion event
       if (result === 'Finished') {
         isRunning = false;
         self.postMessage({ type: 'finished', step: stepCount });
         break;
       }
 
-      // 处理错误事件
+      // Handle error event
       if (result === 'Error') {
         sendError('VDF_ERROR', 'VDF computation error occurred', true);
       }
 
-      // 时间片控制：如果计算时间不足，等待剩余时间
+      // Time-slicing: wait for remaining time if computation took less than slice
       const elapsed_ms = performance.now() - loopStart;
       if (elapsed_ms < TIME_SLICE_MS) {
         await sleep(TIME_SLICE_MS - elapsed_ms);
       }
     } catch (error) {
       sendError('COMPUTATION_ERROR', `Error during computation: ${error}`, true);
-      // 错误后延迟重试
+      // Delay retry after error
       await sleep(1000);
     }
   }
 }
 
-// ==================== 辅助函数 ====================
+// ==================== Helper Functions ====================
 
 /**
- * 发送错误消息给主线程
+ * Send error message to main thread
  *
- * @param code - 错误代码，用于程序化处理
- * @param message - 错误描述，用于显示
- * @param recoverable - 是否可恢复，影响前端处理策略
+ * @param code - Error code for programmatic handling
+ * @param message - Error description for display
+ * @param recoverable - Whether recoverable, affects frontend handling strategy
  */
 function sendError(code: string, message: string, recoverable: boolean) {
   const errorMsg: ErrorMessage = {
@@ -394,20 +426,20 @@ function sendError(code: string, message: string, recoverable: boolean) {
 }
 
 /**
- * 获取当前内存使用量
+ * Get current memory usage
  *
- * 使用 performance.memory API 获取 JavaScript 堆内存使用量。
+ * Uses performance.memory API to get JavaScript heap memory usage.
  *
- * @returns 内存使用量（字节），如果不支持则返回 0
+ * @returns Memory usage in bytes, or 0 if not supported
  *
- * 兼容性说明：
- * - performance.memory 仅在 Chrome/Edge 浏览器中可用
- * - Firefox 和 Safari 不支持此 API
- * - 使用类型断言避免 TypeScript 错误
+ * Compatibility notes:
+ * - performance.memory is only available in Chrome/Edge browsers
+ * - Firefox and Safari do not support this API
+ * - Uses type assertion to avoid TypeScript errors
  */
 function getMemoryUsage(): number {
-  // 检查是否支持 performance.memory API
-  // 使用类型断言因为 TypeScript 默认不包含此属性
+  // Check if performance.memory API is supported
+  // Use type assertion because TypeScript doesn't include this property by default
   const perf = performance as any;
   if (perf.memory && typeof perf.memory.usedJSHeapSize === 'number') {
     return perf.memory.usedJSHeapSize;
@@ -416,10 +448,10 @@ function getMemoryUsage(): number {
 }
 
 /**
- * 启动心跳定时器
+ * Start heartbeat timer
  *
- * 每 10 秒发送一次心跳消息，保持与主线程的连接活跃。
- * 心跳消息包含当前状态，用于主线程监控 Worker 存活。
+ * Sends heartbeat message every 10 seconds to keep connection with main thread alive.
+ * Heartbeat message contains current status for main thread to monitor Worker liveness.
  */
 function startHeartbeat() {
   stopHeartbeat();
@@ -434,9 +466,9 @@ function startHeartbeat() {
 }
 
 /**
- * 停止心跳定时器
+ * Stop heartbeat timer
  *
- * 清除心跳定时器并重置引用。
+ * Clears heartbeat timer and resets reference.
  */
 function stopHeartbeat() {
   if (heartbeatInterval) {
@@ -446,12 +478,12 @@ function stopHeartbeat() {
 }
 
 /**
- * 异步休眠函数
+ * Async sleep function
  *
- * 返回一个 Promise，在指定毫秒后 resolve。
- * 用于时间片控制和错误重试延迟。
+ * Returns a Promise that resolves after specified milliseconds.
+ * Used for time-slicing control and error retry delays.
  *
- * @param ms - 休眠时间（毫秒）
+ * @param ms - Sleep duration in milliseconds
  * @returns Promise<void>
  */
 function sleep(ms: number): Promise<void> {
