@@ -458,9 +458,13 @@ function sendError(code: string, message: string, recoverable: boolean) {
  * - Uses type assertion to avoid TypeScript errors
  */
 function getMemoryUsage(): number {
-  // Check if performance.memory API is supported
-  // Use type assertion because TypeScript doesn't include this property by default
-  const perf = performance as any;
+  // Check if performance.memory API is supported (Chrome only)
+  interface PerformanceMemory {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  }
+  const perf = performance as unknown as { memory?: PerformanceMemory };
   if (perf.memory && typeof perf.memory.usedJSHeapSize === 'number') {
     return perf.memory.usedJSHeapSize;
   }

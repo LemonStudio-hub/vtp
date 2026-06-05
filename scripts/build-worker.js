@@ -78,7 +78,7 @@ async function buildWorker() {
       minify: process.env.NODE_ENV === 'production'
     });
 
-    console.log('Worker built successfully');
+    // Worker built successfully
   } catch (error) {
     console.error('Worker build failed:', error);
     process.exit(1);

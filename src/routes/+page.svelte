@@ -256,7 +256,7 @@
     // Check for recovery snapshot on page load
     const snapshot = await persistence.restoreSnapshot();
     if (snapshot?.wasRunning && !snapshot.wasPaused) {
-      console.info('[Persistence] Found recovery snapshot at step', snapshot.stepCount);
+      // Found recovery snapshot at step ${snapshot.stepCount}
     }
   }
 
@@ -264,8 +264,8 @@
    * Handle system wake event.
    * Verifies worker health and triggers recovery if needed.
    */
-  function onSystemWake(duration: number) {
-    console.info(`[Background] System wake detected after ${Math.round(duration / 1000)}s`);
+  function onSystemWake(_duration: number) {
+    // System wake detected after ${Math.round(_duration / 1000)}s
 
     // Immediately check worker health
     watchdog?.checkNow();
@@ -288,21 +288,32 @@
    * Get current computation state for persistence.
    */
   function getCurrentSnapshot() {
-    let state: any = {};
+    const defaultSnapshot = {
+      timestamp: Date.now(),
+      stepCount: 0,
+      totalSteps: 0,
+      speed: 0,
+      uptime: 0,
+      winnerCount: 0,
+      wasRunning: false,
+      wasPaused: false
+    };
+
+    let snapshot = defaultSnapshot;
     const unsub = workerState.subscribe((s) => {
-      state = s;
+      snapshot = {
+        timestamp: Date.now(),
+        stepCount: s.currentStep,
+        totalSteps: s.totalSteps,
+        speed: s.speed,
+        uptime: s.uptime,
+        winnerCount: s.winnerCount,
+        wasRunning: s.isRunning,
+        wasPaused: s.isPaused
+      };
     });
     unsub();
-    return {
-      timestamp: Date.now(),
-      stepCount: state.currentStep,
-      totalSteps: state.totalSteps,
-      speed: state.speed,
-      uptime: state.uptime,
-      winnerCount: state.winnerCount,
-      wasRunning: state.isRunning,
-      wasPaused: state.isPaused
-    };
+    return snapshot;
   }
 
   /**

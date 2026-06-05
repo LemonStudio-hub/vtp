@@ -214,7 +214,7 @@ export function sleep(ms: number): Promise<void> {
  * - Each invocation resets the debounce timer
  * - The arguments from the last invocation are preserved and used when the timer fires
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {

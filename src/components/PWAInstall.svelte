@@ -33,7 +33,11 @@
    * meets the installation criteria. We prevent the default behaviour
    * and store the event reference for later invocation.
    */
-  let deferredPrompt: any = null;
+  interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  }
+  let deferredPrompt: BeforeInstallPromptEvent | null = null;
 
   /**
    * Whether to show the install button
@@ -61,7 +65,7 @@
       e.preventDefault();
 
       // Store the event reference for later use
-      deferredPrompt = e;
+      deferredPrompt = e as unknown as BeforeInstallPromptEvent;
 
       // Show the custom install button
       showInstallButton = true;
