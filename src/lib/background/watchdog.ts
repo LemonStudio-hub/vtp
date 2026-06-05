@@ -79,13 +79,13 @@ export class WorkerWatchdog {
       maxMissedBeats: options.maxMissedBeats ?? 3,
       onUnresponsive: options.onUnresponsive ?? (() => {}),
       onRestart: options.onRestart ?? (() => {}),
-      onHeartbeat: options.onHeartbeat ?? (() => {}),
+      onHeartbeat: options.onHeartbeat ?? (() => {})
     };
 
     this.state = {
       lastHeartbeat: Date.now(),
       missedBeats: 0,
-      isMonitoring: false,
+      isMonitoring: false
     };
   }
 

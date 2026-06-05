@@ -51,7 +51,7 @@ export class AudioKeepAlive {
 
   constructor(options: AudioKeepAliveOptions = {}) {
     this.options = {
-      autoResume: options.autoResume ?? true,
+      autoResume: options.autoResume ?? true
     };
   }
 

@@ -105,8 +105,12 @@ export interface WinnerMessage {
 /**
  * Heartbeat Message Interface
  *
- * Sent every 10 seconds to keep the connection with the main thread active.
- * Used to monitor the Worker's liveness.
+ * Sent periodically to keep the connection with the main thread active.
+ * Used to monitor the Worker's liveness and detect system sleep.
+ *
+ * The `drift` field helps the main thread detect system sleep: if the
+ * actual time between heartbeats significantly exceeds the expected
+ * interval, the system likely slept or the tab was frozen.
  */
 export interface HeartbeatMessage {
   /** Message type */
@@ -117,6 +121,19 @@ export interface HeartbeatMessage {
 
   /** Current status: running / paused */
   status: string;
+
+  /**
+   * Timing drift in ms since last heartbeat.
+   * Helps main thread detect system sleep or timer throttling.
+   * Present in enhanced heartbeat mode.
+   */
+  drift?: number;
+
+  /**
+   * Current heartbeat interval in ms.
+   * Adapts based on visibility state (faster when visible, slower when hidden).
+   */
+  interval?: number;
 }
 
 /**

@@ -1,0 +1,5 @@
+build/
+static/wasm/
+.svelte-kit/
+node_modules/
+target/

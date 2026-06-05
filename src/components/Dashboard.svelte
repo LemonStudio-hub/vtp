@@ -65,19 +65,17 @@
   /**
    * Handle the start button click
    *
-   * Sends a start command to the Worker with VDF configuration parameters:
-   * - seed: 32-byte random seed
-   * - total: total step target (1,000,000 steps)
-   * - k: VRF lottery interval (every 1,000 steps)
-   * - tau: 32-byte threshold
-   * - checkpointInterval: checkpoint interval (every 100,000 steps)
+   * Sends a start command to the Worker with VDF configuration parameters
+   * and updates the store with totalSteps for progress calculation.
    */
   function handleStart() {
     if (worker) {
+      const totalSteps = 1000000;
+      workerState.update((s) => ({ ...s, totalSteps }));
       worker.postMessage({
         type: 'start',
         seed: new Uint8Array(32),
-        total: 1000000,
+        total: totalSteps,
         k: 1000,
         tau: new Uint8Array(32),
         checkpointInterval: 100000
@@ -88,10 +86,11 @@
   /**
    * Handle the pause button click
    *
-   * Sends a pause command to the Worker
+   * Sends a pause command to the Worker and updates the store
    */
   function handlePause() {
     if (worker) {
+      workerState.update((s) => ({ ...s, isPaused: true }));
       worker.postMessage({ type: 'pause' });
     }
   }
@@ -99,10 +98,11 @@
   /**
    * Handle the resume button click
    *
-   * Sends a resume command to the Worker
+   * Sends a resume command to the Worker and updates the store
    */
   function handleResume() {
     if (worker) {
+      workerState.update((s) => ({ ...s, isPaused: false }));
       worker.postMessage({ type: 'resume' });
     }
   }
@@ -145,11 +145,7 @@
         <h3 class="section-title">Controls</h3>
         <div class="button-group">
           <!-- Start button: only enabled when not running -->
-          <button
-            class="btn btn-start"
-            on:click={handleStart}
-            disabled={$workerState.isRunning}
-          >
+          <button class="btn btn-start" on:click={handleStart} disabled={$workerState.isRunning}>
             <span class="btn-icon">▶</span>
             <span>Start</span>
           </button>
@@ -165,11 +161,7 @@
           </button>
 
           <!-- Resume button: only enabled when paused -->
-          <button
-            class="btn btn-resume"
-            on:click={handleResume}
-            disabled={!$workerState.isPaused}
-          >
+          <button class="btn btn-resume" on:click={handleResume} disabled={!$workerState.isPaused}>
             <span class="btn-icon">▶</span>
             <span>Resume</span>
           </button>
@@ -272,7 +264,8 @@
   }
 
   @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
       transform: scale(1);
       opacity: 1;
     }
@@ -324,10 +317,18 @@
     animation: fadeInUp 0.6s ease forwards;
   }
 
-  .glass-card:nth-child(1) { animation-delay: 0.4s; }
-  .glass-card:nth-child(2) { animation-delay: 0.5s; }
-  .glass-card:nth-child(3) { animation-delay: 0.6s; }
-  .glass-card:nth-child(4) { animation-delay: 0.7s; }
+  .glass-card:nth-child(1) {
+    animation-delay: 0.4s;
+  }
+  .glass-card:nth-child(2) {
+    animation-delay: 0.5s;
+  }
+  .glass-card:nth-child(3) {
+    animation-delay: 0.6s;
+  }
+  .glass-card:nth-child(4) {
+    animation-delay: 0.7s;
+  }
 
   @keyframes fadeInUp {
     to {

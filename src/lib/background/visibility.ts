@@ -76,7 +76,7 @@ export class VisibilityManager {
     this.options = {
       onVisibilityChange: options.onVisibilityChange ?? (() => {}),
       onWake: options.onWake ?? (() => {}),
-      sleepThreshold: options.sleepThreshold ?? 5000,
+      sleepThreshold: options.sleepThreshold ?? 5000
     };
 
     this.currentState = document.visibilityState === 'visible' ? 'visible' : 'hidden';
@@ -126,13 +126,13 @@ export class VisibilityManager {
         this.options.onWake({
           duration: gap,
           isSystemSleep: true,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         });
       } else {
         this.options.onWake({
           duration: gap,
           isSystemSleep: false,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         });
       }
 
@@ -160,7 +160,7 @@ export class VisibilityManager {
       this.options.onWake({
         duration: 0, // Unknown duration from BFCache
         isSystemSleep: false,
-        timestamp: Date.now(),
+        timestamp: Date.now()
       });
     }
   }
@@ -186,7 +186,7 @@ export class VisibilityManager {
         this.options.onWake({
           duration: gap,
           isSystemSleep: true,
-          timestamp: Date.now(),
+          timestamp: Date.now()
         });
       }
 

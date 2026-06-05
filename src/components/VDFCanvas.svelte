@@ -26,6 +26,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { workerState } from '$stores/worker';
+  import { animationBudget } from '$stores/visibility';
 
   /** Reference to the Canvas element */
   let canvas: HTMLCanvasElement;
@@ -44,6 +45,12 @@
 
   /** Time counter for animations */
   let time = 0;
+
+  /** Last frame timestamp for throttling */
+  let lastFrameTime = 0;
+
+  /** Current animation budget from visibility store */
+  let currentBudget = 16;
 
   /**
    * Particle interface definition
@@ -121,6 +128,13 @@
   }
 
   /**
+   * Subscribe to animation budget changes from visibility store.
+   * When the tab is hidden, budget increases to ~1000ms (1fps)
+   * to conserve CPU while still keeping the canvas responsive.
+   */
+  $: currentBudget = $animationBudget;
+
+  /**
    * Initialize the Canvas when the component mounts
    *
    * Obtains the 2D rendering context and sets the canvas dimensions
@@ -194,11 +208,25 @@
    * 3. Updating and drawing particles
    * 4. Spawning new particles
    * 5. Requesting the next frame
+   *
+   * Uses visibility-aware throttling: when the tab is hidden,
+   * the frame rate drops to ~1fps to conserve CPU.
    */
   function animate() {
     if (!ctx || !canvas) return;
 
-    time += 0.016;
+    const now = performance.now();
+    const elapsed = now - lastFrameTime;
+
+    // Throttle frame rate based on visibility
+    if (elapsed < currentBudget) {
+      animationFrame = requestAnimationFrame(animate);
+      return;
+    }
+
+    lastFrameTime = now;
+    const dt = elapsed / 1000; // Delta time in seconds
+    time += Math.min(dt, 0.1); // Cap delta to avoid jumps after sleep
 
     // Clear canvas with slight trail effect
     ctx.fillStyle = 'rgba(10, 10, 26, 0.15)';
@@ -366,14 +394,8 @@
       const outerRadius = radius - 12;
 
       ctx.beginPath();
-      ctx.moveTo(
-        x + Math.cos(angle) * innerRadius,
-        y + Math.sin(angle) * innerRadius
-      );
-      ctx.lineTo(
-        x + Math.cos(angle) * outerRadius,
-        y + Math.sin(angle) * outerRadius
-      );
+      ctx.moveTo(x + Math.cos(angle) * innerRadius, y + Math.sin(angle) * innerRadius);
+      ctx.lineTo(x + Math.cos(angle) * outerRadius, y + Math.sin(angle) * outerRadius);
       ctx.strokeStyle = i % 5 === 0 ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
       ctx.lineWidth = i % 5 === 0 ? 2 : 1;
       ctx.stroke();

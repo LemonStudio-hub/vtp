@@ -19,6 +19,7 @@
 
 <script lang="ts">
   import { workerState } from '$stores/worker';
+  import { isVisible } from '$stores/visibility';
 
   /** Animated values for smooth transitions */
   let displaySpeed = 0;
@@ -28,12 +29,20 @@
   /**
    * Reactive animation updates
    *
-   * Smoothly interpolates displayed values towards actual values
+   * Smoothly interpolates displayed values towards actual values.
+   * Only animates when the tab is visible to conserve resources.
    */
   $: {
-    animateValue('speed', $workerState.speed);
-    animateValue('step', $workerState.currentStep);
-    animateValue('uptime', $workerState.uptime);
+    if ($isVisible) {
+      animateValue('speed', $workerState.speed);
+      animateValue('step', $workerState.currentStep);
+      animateValue('uptime', $workerState.uptime);
+    } else {
+      // When hidden, snap to values directly (no animation)
+      displaySpeed = $workerState.speed;
+      displayStep = $workerState.currentStep;
+      displayUptime = $workerState.uptime;
+    }
   }
 
   /**

@@ -97,8 +97,12 @@
 
     // Add a subtle overlay for depth
     const overlayGradient = ctx.createRadialGradient(
-      size / 2, size / 2, 0,
-      size / 2, size / 2, size / 2
+      size / 2,
+      size / 2,
+      0,
+      size / 2,
+      size / 2,
+      size / 2
     );
     overlayGradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
     overlayGradient.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
@@ -204,7 +208,8 @@
   }
 
   @keyframes glowPulse {
-    0%, 100% {
+    0%,
+    100% {
       box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
     }
     50% {

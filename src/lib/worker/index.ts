@@ -135,6 +135,12 @@ interface HeartbeatMessage {
 
   /** Current status: running/paused */
   status: string;
+
+  /** Timing drift in ms since last heartbeat */
+  drift?: number;
+
+  /** Current heartbeat interval in ms */
+  interval?: number;
 }
 
 /**
@@ -158,7 +164,7 @@ interface ErrorMessage {
 // ==================== State Variables ====================
 
 /** Current VDF session instance */
-let session: Session | null = null;
+let session: SessionType | null = null;
 
 /** Whether currently running */
 let isRunning = false;
@@ -180,6 +186,17 @@ let speed = 0;
 
 /** Heartbeat timer */
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Timestamp of the last heartbeat sent */
+let lastHeartbeatTime = 0;
+
+/**
+ * Current heartbeat interval in ms.
+ * Adaptive: uses shorter interval when tab is likely visible (10s)
+ * and longer interval when likely hidden (30s) to conserve resources.
+ * The main thread can send 'setHeartbeatMode' to explicitly control this.
+ */
+let heartbeatIntervalMs = 10000;
 
 // ==================== Message Handling ====================
 
@@ -206,6 +223,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
       break;
     case 'stop':
       handleStop();
+      break;
+    case 'setHeartbeatMode':
+      handleSetHeartbeatMode(params as { visible?: boolean });
       break;
     default:
       sendError('UNKNOWN_COMMAND', `Unknown command: ${type}`, false);
@@ -450,19 +470,36 @@ function getMemoryUsage(): number {
 /**
  * Start heartbeat timer
  *
- * Sends heartbeat message every 10 seconds to keep connection with main thread alive.
- * Heartbeat message contains current status for main thread to monitor Worker liveness.
+ * Sends heartbeat messages at adaptive intervals to keep connection with
+ * main thread alive. Includes drift detection for system sleep identification.
+ *
+ * Interval adapts based on estimated visibility:
+ * - Visible (active): 10 seconds - responsive monitoring
+ * - Hidden (background): 30 seconds - conserve resources
+ *
+ * Each heartbeat includes a `drift` field showing how much time actually
+ * elapsed since the last heartbeat. Large drift values indicate the system
+ * slept or the browser throttled the Worker's timers.
  */
 function startHeartbeat() {
   stopHeartbeat();
+  lastHeartbeatTime = Date.now();
+
   heartbeatInterval = setInterval(() => {
+    const now = Date.now();
+    const drift = now - lastHeartbeatTime - heartbeatIntervalMs;
+
     const heartbeatMsg: HeartbeatMessage = {
       type: 'heartbeat',
-      timestamp: Date.now(),
-      status: isPaused ? 'paused' : 'running'
+      timestamp: now,
+      status: isPaused ? 'paused' : 'running',
+      drift,
+      interval: heartbeatIntervalMs
     };
     self.postMessage(heartbeatMsg);
-  }, 10000);
+
+    lastHeartbeatTime = now;
+  }, heartbeatIntervalMs);
 }
 
 /**
@@ -474,6 +511,27 @@ function stopHeartbeat() {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
+  }
+}
+
+/**
+ * Handle setHeartbeatMode command from main thread.
+ *
+ * Adjusts the heartbeat interval based on tab visibility.
+ * Called by the main thread when visibility changes.
+ *
+ * @param params - Object with `visible` boolean flag
+ */
+function handleSetHeartbeatMode(params: { visible?: boolean }) {
+  const newInterval = params.visible ? 10000 : 30000;
+
+  if (newInterval !== heartbeatIntervalMs) {
+    heartbeatIntervalMs = newInterval;
+
+    // Restart heartbeat with new interval if currently running
+    if (isRunning && !isPaused) {
+      startHeartbeat();
+    }
   }
 }
 
