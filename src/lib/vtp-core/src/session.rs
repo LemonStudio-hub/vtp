@@ -100,28 +100,16 @@ pub struct SessionState {
 /// - `vdf`: VDF iterator, responsible for sequential hash computation
 /// - `keypair`: VRF keypair, used for generating and verifying lottery proofs
 /// - `k`: Lottery interval, a VRF lottery draw is performed every k steps
-/// - `tau`: Threshold, used to determine if a winning ticket is drawn
+/// - `tau`: Threshold, VRF output must be less than this value to win
 /// - `checkpoint_interval`: Checkpoint interval
 /// - `error_handler`: Error handler
 /// - `is_paused`: Pause flag
 ///
-/// # Examples
-/// ```rust
-/// use vtp_core::session::{Session, BatchResult};
-///
-/// let seed = [0u8; 32];
-/// let tau = [0u8; 32];
-/// let mut session = Session::new(&seed, 100, 0, &tau, 50);
-///
-/// loop {
-///     match session.run_batch(50) {
-///         BatchResult::Progress(step) => { /* computation in progress */ },
-///         BatchResult::Winner(result) => { /* winning ticket found */ },
-///         BatchResult::Finished => break,
-///         BatchResult::Error(err) => { /* error occurred */ },
-///     }
-/// }
-/// ```
+/// # Lottery Mechanism
+/// At each checkpoint step (step % checkpoint_interval == 0):
+/// 1. Generate VRF proof for the current step
+/// 2. Compute VRF output (hash) from the proof
+/// 3. If VRF output < tau, the node wins the lottery
 #[wasm_bindgen]
 pub struct Session {
     /// VDF iterator
@@ -133,8 +121,7 @@ pub struct Session {
     /// Lottery interval
     k: u64,
 
-    /// Threshold (currently unused, reserved for future extension)
-    #[allow(dead_code)]
+    /// Threshold - VRF output must be less than this to win
     tau: Vec<u8>,
 
     /// Checkpoint interval
@@ -241,7 +228,7 @@ impl Session {
     /// 1. Check if the session has finished or is paused
     /// 2. Execute VDF batch computation
     /// 3. Generate VRF proof at checkpoint steps
-    /// 4. Determine if a winning ticket is drawn
+    /// 4. Compute VRF output and compare with tau threshold
     /// 5. Return the corresponding result
     pub fn run_batch(&mut self, max_steps: u64) -> BatchResult {
         if self.vdf.is_finished() {
@@ -255,11 +242,12 @@ impl Session {
         let _steps = self.vdf.run_batch(max_steps);
         let current_step = self.vdf.step();
 
-        if self.is_checkpoint_step(current_step) {
+        if self.is_checkpoint_step(current_step) && self.k > 0 && current_step % self.k == 0 {
             let message = current_step.to_be_bytes();
             let proof = vrf::prove(&self.keypair.secret_key(), &message);
 
-            if self.should_trigger_vrf(current_step) {
+            // Compute VRF output and compare with threshold
+            if self.check_vrf_winner(&proof) {
                 let winner = WinnerResult { step: current_step, proof };
                 return BatchResult::Winner(winner);
             }
@@ -285,21 +273,20 @@ impl Session {
         step % self.checkpoint_interval == 0
     }
 
-    /// Check whether VRF lottery drawing should be triggered.
+    /// Check if VRF output meets the winning threshold.
+    ///
+    /// Computes the VRF output from the proof and compares it with tau.
+    /// A node wins if VRF output < tau (lexicographic comparison).
     ///
     /// # Arguments
-    /// - `step`: The current step number
+    /// - `proof`: The VRF proof bytes
     ///
     /// # Returns
-    /// - `true`: VRF should be triggered
-    /// - `false`: VRF should not be triggered
-    #[allow(clippy::manual_is_multiple_of)]
-    fn should_trigger_vrf(&self, step: u64) -> bool {
-        if self.k == 0 {
-            return false;
-        }
-
-        step % self.k == 0
+    /// - `true`: VRF output < tau (winner)
+    /// - `false`: VRF output >= tau (not a winner)
+    fn check_vrf_winner(&self, proof: &[u8]) -> bool {
+        let vrf_output = vrf::proof_to_hash(proof);
+        vrf_output < self.tau
     }
 
     /// Get checkpoint data.
@@ -323,17 +310,22 @@ impl Session {
 
     /// Verify a winning proof.
     ///
-    /// Verifies whether the given VRF proof is valid.
+    /// Verifies whether the given VRF proof is valid and meets the winning threshold.
     ///
     /// # Arguments
     /// - `step`: The winning step number
     /// - `proof`: The VRF proof
     ///
     /// # Returns
-    /// - `true`: The proof is valid
-    /// - `false`: The proof is invalid
+    /// - `true`: The proof is valid and meets threshold
+    /// - `false`: The proof is invalid or doesn't meet threshold
     pub fn verify_winner(&self, step: u64, proof: &[u8]) -> bool {
         let message = step.to_be_bytes();
-        vrf::verify(&self.keypair.public_key(), &message, proof)
+        if !vrf::verify(&self.keypair.public_key(), &message, proof) {
+            return false;
+        }
+
+        // Also verify the VRF output meets the threshold
+        self.check_vrf_winner(proof)
     }
 }

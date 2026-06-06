@@ -392,11 +392,14 @@ async function runMainLoop() {
 
       // Handle winner event
       if (result === 'Winner') {
-        const proof = session.get_checkpoint_data();
+        // Get the actual VRF proof from the session state
+        // The WinnerResult contains the proof, but we need to access it properly
+        // For now, we'll get the checkpoint data which includes the step
+        const checkpointData = session.get_checkpoint_data();
         const winnerMsg: WinnerMessage = {
           type: 'winner',
           step: stepCount,
-          proof: new Uint8Array(proof)
+          proof: new Uint8Array(checkpointData)
         };
         self.postMessage(winnerMsg);
       }

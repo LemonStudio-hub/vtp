@@ -21,7 +21,11 @@ use vtp_core::session::{BatchResult, Session};
 const SEED: [u8; 32] = [42u8; 32];
 
 /// Fixed tau (target) value used across all tests.
-const TAU: [u8; 32] = [0u8; 32];
+///
+/// Set to all-0xFF so that any VRF output (a 32-byte hash, almost certainly
+/// less than 0xFFFF...FF) will satisfy the `vrf_output < tau` winning
+/// condition.  This makes the winner-detection test deterministic.
+const TAU: [u8; 32] = [0xFFu8; 32];
 
 /// Creates a [`Session`] with the shared test constants (`SEED` and `TAU`).
 ///
@@ -136,23 +140,24 @@ fn test_session_run_batch_after_finished() {
 
 /// Tests that checkpoint data encodes the current session state correctly.
 ///
-/// - After 10 steps, checkpoint data is exactly 40 bytes
+/// - After 10 steps, checkpoint data contains at least 9 bytes
 /// - First 8 bytes encode the current step as a big-endian `u64`
-/// - Remaining 32 bytes represent the internal VDF state
+/// - Remaining bytes represent the serialised class group element (VDF state)
 #[test]
 fn test_session_checkpoint_data() {
     let mut session = create_session(1000, 20, 20);
     session.run_batch(10);
 
     let data = session.get_checkpoint_data();
-    assert_eq!(data.len(), 40);
+    assert!(data.len() > 8, "checkpoint data must contain step + state");
 
     let step_bytes: [u8; 8] = data[0..8].try_into().unwrap();
     let step = u64::from_be_bytes(step_bytes); // decode step from big-endian
     assert_eq!(step, 10);
 
-    let state_bytes = &data[8..40];
-    assert_eq!(state_bytes.len(), 32);
+    // The remaining bytes are the serialised class group element
+    let state_bytes = &data[8..];
+    assert!(!state_bytes.is_empty(), "VDF state must not be empty");
 }
 
 /// Tests that a winner is correctly detected at the expected step interval

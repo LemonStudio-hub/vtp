@@ -27,6 +27,12 @@ curve25519-dalek = { version = "4.1", features = ["alloc"] }
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
+subtle = "2.5"
+
+# Big integer for VDF class group
+num-bigint = "0.4"
+num-integer = "0.1"
+num-traits = "0.2"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

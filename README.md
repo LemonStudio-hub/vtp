@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![VTP Logo](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=A%20modern%20minimalist%20logo%20for%20VTP%20Node%2C%20featuring%20a%20stylized%20clock%20or%20hourglass%20combined%20with%20blockchain%20elements%2C%20using%20teal%20and%20dark%20blue%20colors%2C%20clean%20geometric%20design%2C%20tech%20startup%20aesthetic&image_size=square)
+<img src="static/icons/vtp-logo.svg" alt="VTP Logo" width="160">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-orange.svg)](https://www.rust-lang.org/)
@@ -65,7 +65,7 @@ VTP Node is a single-node prototype implementation of the **Verifiable Time Proo
 
 | Feature                 | Description                                         | Status      |
 | ----------------------- | --------------------------------------------------- | ----------- |
-| **VDF Engine**          | Sequential SHA256 iteration compiled to WebAssembly | ✅ Complete |
+| **VDF Engine**          | Wesolowski VDF over imaginary quadratic class groups (WebAssembly) | ✅ Complete |
 | **VRF Implementation**  | ECVRF-ED25519 proof generation and verification     | ✅ Complete |
 | **Web Worker**          | Background computation with time-slicing            | ✅ Complete |
 | **Real-time Dashboard** | Live progress visualization with Canvas 2D          | ✅ Complete |
@@ -77,7 +77,8 @@ VTP Node is a single-node prototype implementation of the **Verifiable Time Proo
 
 | Metric               | Target         | Description                     |
 | -------------------- | -------------- | ------------------------------- |
-| VDF Speed            | ≥ 2M steps/sec | Sequential SHA256 iterations    |
+| VDF Speed            | Class group squarings/sec | Sequential class group operations |
+| VDF Verification     | O(log l) group ops       | Wesolowski proof verification     |
 | VRF Latency          | ≤ 1ms          | Proof generation time           |
 | Background Retention | ≥ 50%          | Speed when tab is in background |
 | Memory Stability     | < 10MB growth  | Over 30 minutes of operation    |
@@ -105,7 +106,7 @@ VTP Node is a single-node prototype implementation of the **Verifiable Time Proo
 │  │  │              vtp-core (WebAssembly)                  │ │ │
 │  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │ │ │
 │  │  │  │  VDF Engine │  │  VRF Engine │  │   Session   │ │ │ │
-│  │  │  │  (SHA256)   │  │ (ED25519)   │  │   Manager   │ │ │ │
+│  │  │  │ (Class Grp) │  │ (ED25519)   │  │   Manager   │ │ │ │
 │  │  │  └─────────────┘  └─────────────┘  └─────────────┘ │ │ │
 │  │  └─────────────────────────────────────────────────────┘ │ │
 │  │  ┌─────────────────────────────────────────────────────┐ │ │
@@ -119,7 +120,7 @@ VTP Node is a single-node prototype implementation of the **Verifiable Time Proo
 ### Data Flow
 
 1. **Initialization**: User starts VDF computation with seed and parameters
-2. **Computation**: Worker performs sequential SHA256 iterations in batches
+2. **Computation**: Worker performs sequential class group squarings (Wesolowski VDF) in batches
 3. **Checkpointing**: State is periodically saved to IndexedDB
 4. **VRF Sampling**: At each checkpoint interval, VRF proof is generated
 5. **Progress Reporting**: Worker sends progress updates to main thread
@@ -437,7 +438,7 @@ vtp-node/
 #### VDF Module
 
 ```rust
-/// Execute a single VDF step (SHA256 iteration)
+/// Execute a single VDF step (class group squaring)
 pub fn vdf_step(state: &[u8; 32]) -> [u8; 32]
 
 /// VDF Iterator for batch processing
@@ -452,6 +453,12 @@ impl VdfIterator {
     pub fn next(&mut self) -> bool
     pub fn run_batch(&mut self, max_steps: u64) -> u64
 }
+
+/// Generate Wesolowski proof
+pub fn generate_proof(seed: &[u8], state_bytes: &[u8], total: u64) -> Vec<u8>
+
+/// Verify Wesolowski proof
+pub fn verify_proof(seed: &[u8], state_bytes: &[u8], total: u64, proof_bytes: &[u8]) -> bool
 ```
 
 #### VRF Module
@@ -482,6 +489,8 @@ impl Session {
     pub fn run_batch(&mut self, max_steps: u64) -> BatchResult
     pub fn get_checkpoint_data(&self) -> Vec<u8>
     pub fn verify_winner(&self, step: u64, proof: &[u8]) -> bool
+    pub fn generate_vdf_proof(&self) -> Vec<u8>
+    pub fn verify_vdf_proof(&self, proof_bytes: &[u8]) -> bool
 }
 ```
 

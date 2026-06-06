@@ -98,7 +98,7 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 │  │  │  │              vtp-core (WebAssembly)                  │   │ │ │
 │  │  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │   │ │ │
 │  │  │  │  │  VDF Engine │  │  VRF Engine │  │   Session   │ │   │ │ │
-│  │  │  │  │  (SHA256)   │  │ (ED25519)   │  │   Manager   │ │   │ │ │
+│  │  │  │  │ (Class Grp) │  │ (ED25519)   │  │   Manager   │ │   │ │ │
 │  │  │  │  └─────────────┘  └─────────────┘  └─────────────┘ │   │ │ │
 │  │  │  └─────────────────────────────────────────────────────┘   │ │ │
 │  │  │  ┌─────────────────────────────────────────────────────┐   │ │ │
@@ -156,7 +156,7 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 | **Build Tool**   | Vite 5           | Fast development and build |
 | **Language**     | TypeScript 5     | Type-safe JavaScript       |
 | **Core Library** | Rust + wasm-pack | High-performance Wasm      |
-| **Crypto**       | SHA256 + ED25519 | VDF and VRF operations     |
+| **Crypto**       | Wesolowski VDF + ED25519 | VDF and VRF operations |
 | **Styling**      | CSS              | Component styling          |
 | **Storage**      | IndexedDB        | Checkpoint persistence     |
 | **PWA**          | Workbox          | Service worker caching     |
@@ -186,11 +186,11 @@ vtp-core/
 
 #### Key Design Decisions
 
-1. **Sequential SHA256**: Chosen for VDF because:
-   - Simple to implement
-   - Well-understood security properties
-   - Efficient in WebAssembly
-   - No need for large integer arithmetic
+1. **Wesolowski VDF over Imaginary Quadratic Class Groups**: Chosen for VDF because:
+   - Provably sequential: computing g^(2^T) requires T sequential squarings
+   - Efficient verification: O(log l) group operations regardless of T
+   - Well-studied security based on class group hardness assumption
+   - Compatible with WebAssembly via `num-bigint` for large-integer arithmetic
 
 2. **ED25519 for VRF**: Chosen because:
    - Fast signature generation
@@ -215,7 +215,7 @@ vtp-core/
 │  Heap                                         │
 │  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ VDF State   │  │ VRF Keys            │  │
-│  │ (32 bytes)  │  │ (64 bytes)          │  │
+│  │ (BQF elem)  │  │ (64 bytes)          │  │
 │  └─────────────┘  └─────────────────────┘  │
 │  ┌─────────────┐  ┌─────────────────────┐  │
 │  │ Session     │  │ Temporary Buffers   │  │
@@ -640,9 +640,9 @@ function getScheduler() {
 
 #### VDF Security
 
-- **Sequential**: Cannot be parallelized
+- **Sequential**: Class group squarings cannot be parallelised (sequential squaring assumption)
 - **Deterministic**: Same input produces same output
-- **Verifiable**: Output can be quickly verified
+- **Verifiable**: Wesolowski proof allows O(log l) verification regardless of delay T
 
 #### VRF Security
 
@@ -745,7 +745,7 @@ const features = {
 
 ### Potential Improvements
 
-1. **SIMD Support**: Use WebAssembly SIMD for faster SHA256
+1. **SIMD Support**: Enable WebAssembly SIMD128 for faster big-integer operations
 2. **SharedArrayBuffer**: Enable true multi-threading
 3. **WebGPU**: Offload computation to GPU
 4. **Web Locks API**: Better multi-tab coordination

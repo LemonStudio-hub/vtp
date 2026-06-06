@@ -61,11 +61,11 @@ The `vtp-core` crate provides the core cryptographic functionality. It is compil
 
 ### VDF Module
 
-The VDF (Verifiable Delay Function) module implements sequential SHA256 iteration.
+The VDF (Verifiable Delay Function) module implements Wesolowski's construction over imaginary quadratic class groups.
 
 #### `vdf_step`
 
-Execute a single VDF step (SHA256 iteration).
+Execute a single VDF step (class group squaring).
 
 ```rust
 pub fn vdf_step(state: &[u8; 32]) -> [u8; 32]
@@ -74,11 +74,11 @@ pub fn vdf_step(state: &[u8; 32]) -> [u8; 32]
 **Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `state` | `[u8; 32]` | Current VDF state (32 bytes) |
+| `state` | `[u8; 32]` | Current VDF state seed (32 bytes) |
 
 **Returns:**
 
-- `[u8; 32]`: New state after SHA256 iteration
+- `[u8; 32]`: Hash of the squared class group element
 
 **Example:**
 
@@ -88,8 +88,6 @@ let next_state = vdf_step(&state);
 assert_eq!(next_state.len(), 32);
 ```
 
-**Performance:** ~200-500ns per step (depending on hardware)
-
 ---
 
 #### `VdfIterator`
@@ -98,9 +96,11 @@ Iterator for batch VDF processing.
 
 ```rust
 pub struct VdfIterator {
-    state: [u8; 32],
+    state: VdfState,
     step: u64,
     total: u64,
+    discriminant: BigInt,
+    generator: ClassGroupElement,
 }
 ```
 
@@ -171,7 +171,7 @@ Get current VDF state.
 pub fn get_state(&self) -> Vec<u8>
 ```
 
-**Returns:** 32-byte state vector
+**Returns:** Variable-length state vector (serialised class group element)
 
 ---
 
@@ -213,6 +213,47 @@ let mut iter = VdfIterator::new(&seed, 1000);
 let steps = iter.run_batch(100);
 assert_eq!(steps, 100);
 ```
+
+---
+
+#### `generate_proof`
+
+Generate a Wesolowski proof for a completed VDF computation.
+
+```rust
+pub fn generate_proof(seed: &[u8], state_bytes: &[u8], total: u64) -> Vec<u8>
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `seed` | `&[u8]` | Original VDF seed (at least 32 bytes) |
+| `state_bytes` | `&[u8]` | Serialised final state (output y) |
+| `total` | `u64` | Time parameter T |
+
+**Returns:** The Wesolowski proof as bytes (serialised class group element)
+
+---
+
+#### `verify_proof`
+
+Verify a Wesolowski proof. Checks that pi^l * g^q == y where l = Hash(g, y, T).
+
+```rust
+pub fn verify_proof(seed: &[u8], state_bytes: &[u8], total: u64, proof_bytes: &[u8]) -> bool
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `seed` | `&[u8]` | Original VDF seed |
+| `state_bytes` | `&[u8]` | Claimed output y |
+| `total` | `u64` | Time parameter T |
+| `proof_bytes` | `&[u8]` | The proof pi |
+
+**Returns:**
+- `true`: The proof is valid
+- `false`: The proof is invalid
 
 ---
 
@@ -324,7 +365,40 @@ pub fn verify(public_key: &[u8], message: &[u8], proof: &[u8]) -> bool
 **Returns:**
 
 - `true`: Proof is valid
-- `false`: Proof is invalid or verification failed
+- `false`: Proof is invalid
+
+---
+
+##### `Session::generate_vdf_proof`
+
+Generate a Wesolowski proof for the completed VDF computation.
+
+```rust
+pub fn generate_vdf_proof(&self) -> Vec<u8>
+```
+
+**Returns:** The Wesolowski proof as bytes (serialised class group element)
+
+**Panics:** If the VDF computation has not finished yet
+
+---
+
+##### `Session::verify_vdf_proof`
+
+Verify a Wesolowski proof against the current session state.
+
+```rust
+pub fn verify_vdf_proof(&self, proof_bytes: &[u8]) -> bool
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `proof_bytes` | `&[u8]` | The Wesolowski proof bytes |
+
+**Returns:**
+- `true`: The proof is valid
+- `false`: The proof is invalid or verification failed
 
 **Example:**
 
@@ -400,6 +474,7 @@ VDF challenge session manager.
 ```rust
 pub struct Session {
     vdf: VdfIterator,
+    seed: Vec<u8>,
     keypair: VrfKeypair,
     k: u64,
     tau: Vec<u8>,
@@ -548,7 +623,7 @@ pub fn get_checkpoint_data(&self) -> Vec<u8>
 
 **Returns:** Serialized checkpoint data
 
-**Format:** `[8 bytes step (big-endian)] [32 bytes VDF state]`
+**Format:** `[8 bytes step (big-endian)] [variable-length VDF state (class group element)]`
 
 ---
 

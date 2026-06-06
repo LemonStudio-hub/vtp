@@ -7,15 +7,16 @@
 //! - Rejection of tampered proofs
 //! - Message-domain separation (different messages produce different proofs)
 //! - Keypair uniqueness across independent generations
-//! - Fixed proof length guarantees
+//! - Fixed proof length guarantees (80 bytes for ECVRF-EDWARDS25519-SHA512-TAI)
 //! - Edge cases: empty and large messages
 //! - Cross-keypair verification rejection
 //! - Deterministic proof generation
 //! - Single-bit-flip detection sensitivity
+//! - VRF output extraction and pseudorandomness
 
 #[cfg(test)]
 mod tests {
-    use vtp_core::vrf::{generate_keypair, prove, verify};
+    use vtp_core::vrf::{generate_keypair, prove, proof_to_hash, verify};
 
     /// Tests that [`generate_keypair`] produces keys of the expected size.
     ///
@@ -30,18 +31,22 @@ mod tests {
 
     /// Tests the core prove-and-verify round trip.
     ///
-    /// - A proof generated with the correct secret key is non-empty
+    /// - A proof generated with the correct secret key is 80 bytes
     /// - Verification succeeds when using the matching public key and message
+    /// - VRF output can be extracted and is 32 bytes
     #[test]
     fn test_prove_and_verify_native() {
         let keypair = generate_keypair();
         let message = b"test message";
 
         let proof = prove(&keypair.secret_key(), message);
-        assert!(!proof.is_empty());
+        assert_eq!(proof.len(), 80);
 
         let is_valid = verify(&keypair.public_key(), message, &proof);
         assert!(is_valid);
+
+        let vrf_output = proof_to_hash(&proof);
+        assert_eq!(vrf_output.len(), 32);
     }
 
     /// Tests that a tampered proof is correctly rejected during verification.
@@ -66,6 +71,7 @@ mod tests {
     ///
     /// - Proofs generated for different messages verify correctly with their own message
     /// - A proof generated for `message1` does NOT verify against `message2`
+    /// - Different messages produce different VRF outputs
     /// - Ensures proofs cannot be replayed across different messages
     #[test]
     fn test_different_messages_native() {
@@ -79,6 +85,10 @@ mod tests {
         assert!(verify(&keypair.public_key(), message1, &proof1));
         assert!(verify(&keypair.public_key(), message2, &proof2));
         assert!(!verify(&keypair.public_key(), message1, &proof2));
+
+        let hash1 = proof_to_hash(&proof1);
+        let hash2 = proof_to_hash(&proof2);
+        assert_ne!(hash1, hash2);
     }
 
     /// Tests that independently generated keypairs are unique.
@@ -95,9 +105,10 @@ mod tests {
         assert_ne!(keypair1.secret_key(), keypair2.secret_key());
     }
 
-    /// Tests that VRF proofs always have a fixed length of 64 bytes.
+    /// Tests that VRF proofs always have a fixed length of 80 bytes.
     ///
-    /// - A proof generated for a short message is exactly 64 bytes
+    /// - A proof generated for a short message is exactly 80 bytes
+    /// - Format: gamma (32 bytes) || c (16 bytes) || s (32 bytes)
     /// - Ensures downstream consumers can rely on a constant proof size
     #[test]
     fn test_proof_length() {
@@ -106,12 +117,12 @@ mod tests {
 
         let proof = prove(&keypair.secret_key(), message);
 
-        assert_eq!(proof.len(), 64);
+        assert_eq!(proof.len(), 80);
     }
 
     /// Tests that VRF handles empty messages correctly.
     ///
-    /// - A proof for an empty message is still 64 bytes
+    /// - A proof for an empty message is still 80 bytes
     /// - Verification of the empty-message proof succeeds
     /// - Ensures the VRF does not break on zero-length inputs
     #[test]
@@ -120,7 +131,7 @@ mod tests {
         let message = b"";
 
         let proof = prove(&keypair.secret_key(), message);
-        assert_eq!(proof.len(), 64);
+        assert_eq!(proof.len(), 80);
 
         let is_valid = verify(&keypair.public_key(), message, &proof);
         assert!(is_valid);
@@ -128,7 +139,7 @@ mod tests {
 
     /// Tests that VRF handles large messages correctly.
     ///
-    /// - A 10 KiB message produces a 64-byte proof (same as any other message size)
+    /// - A 10 KiB message produces a 80-byte proof (same as any other message size)
     /// - Verification of the large-message proof succeeds
     /// - Ensures the VRF is not affected by message size
     #[test]
@@ -137,7 +148,7 @@ mod tests {
         let message = vec![0xABu8; 10 * 1024];
 
         let proof = prove(&keypair.secret_key(), &message);
-        assert_eq!(proof.len(), 64);
+        assert_eq!(proof.len(), 80);
 
         let is_valid = verify(&keypair.public_key(), &message, &proof);
         assert!(is_valid);
@@ -174,15 +185,19 @@ mod tests {
         let proof2 = prove(&keypair.secret_key(), message);
 
         assert_eq!(proof1, proof2);
+
+        let hash1 = proof_to_hash(&proof1);
+        let hash2 = proof_to_hash(&proof2);
+        assert_eq!(hash1, hash2);
     }
 
     /// Tests that flipping any single bit in a valid proof causes verification
     /// to fail, demonstrating the avalanche effect.
     ///
-    /// - Iterates over every byte and every bit position in the 64-byte proof
+    /// - Iterates over every byte and every bit position in the 80-byte proof
     /// - Flips one bit at a time and verifies the proof is rejected
     /// - Ensures even minimal tampering is detected
-    /// - This is a comprehensive bit-sensitivity check (64 bytes × 8 bits = 512 assertions)
+    /// - This is a comprehensive bit-sensitivity check (80 bytes × 8 bits = 640 assertions)
     #[test]
     fn test_proof_bit_flip_detection() {
         let keypair = generate_keypair();
@@ -203,5 +218,61 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Tests that VRF output is pseudorandom.
+    ///
+    /// - Different inputs produce different VRF outputs
+    /// - VRF output length is always 32 bytes
+    /// - Ensures the VRF provides pseudorandomness
+    #[test]
+    fn test_vrf_output_pseudorandom() {
+        let keypair = generate_keypair();
+
+        let proof1 = prove(&keypair.secret_key(), b"input1");
+        let proof2 = prove(&keypair.secret_key(), b"input2");
+
+        let hash1 = proof_to_hash(&proof1);
+        let hash2 = proof_to_hash(&proof2);
+
+        assert_eq!(hash1.len(), 32);
+        assert_eq!(hash2.len(), 32);
+        assert_ne!(hash1, hash2);
+    }
+
+    /// Tests that VRF output can be extracted from proof.
+    ///
+    /// - proof_to_hash returns a 32-byte output
+    /// - Same proof always produces same output
+    /// - Output is deterministic
+    #[test]
+    fn test_proof_to_hash() {
+        let keypair = generate_keypair();
+        let message = b"proof to hash test";
+
+        let proof = prove(&keypair.secret_key(), message);
+        let hash1 = proof_to_hash(&proof);
+        let hash2 = proof_to_hash(&proof);
+
+        assert_eq!(hash1.len(), 32);
+        assert_eq!(hash1, hash2);
+    }
+
+    /// Tests that invalid proof length causes verification failure.
+    ///
+    /// - Proof with wrong length (not 80 bytes) should fail verification
+    /// - Ensures proper input validation
+    #[test]
+    fn test_invalid_proof_length() {
+        let keypair = generate_keypair();
+        let message = b"test";
+
+        // Too short
+        let short_proof = vec![0u8; 40];
+        assert!(!verify(&keypair.public_key(), message, &short_proof));
+
+        // Too long
+        let long_proof = vec![0u8; 100];
+        assert!(!verify(&keypair.public_key(), message, &long_proof));
     }
 }

@@ -20,6 +20,8 @@ export class Session {
   is_paused(): boolean;
   get_checkpoint_data(): Uint8Array;
   verify_winner(step: number, proof: Uint8Array): boolean;
+  generate_vdf_proof(): Uint8Array;
+  verify_vdf_proof(proof_bytes: Uint8Array): boolean;
   free(): void;
 }
 
