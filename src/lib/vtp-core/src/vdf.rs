@@ -780,7 +780,7 @@ fn derive_discriminant_and_generator(seed: &[u8]) -> (BigInt, ClassGroupElement)
     while (d_bytes.len() * 8) < DISCRIMINANT_BITS as usize {
         let mut h2 = Sha256::new();
         h2.update(b"VTP-VDF-DISCRIMINANT-CHAIN");
-        h2.update(&counter.to_be_bytes());
+        h2.update(counter.to_be_bytes());
         h2.update(seed);
         let h2_result = h2.finalize();
         d_bytes.extend_from_slice(&h2_result);
@@ -846,8 +846,8 @@ fn derive_generator_from_seed(seed: &[u8], delta: &BigInt) -> ClassGroupElement 
                     let hash_val = {
                         let mut h = Sha256::new();
                         h.update(seed);
-                        h.update(&(a_val as u32).to_be_bytes());
-                        h.update(&(b_val as u32).to_be_bytes());
+                        h.update(a_val.to_be_bytes());
+                        h.update(b_val.to_be_bytes());
                         let result = h.finalize();
                         result[0]
                     };
@@ -886,9 +886,9 @@ fn compute_challenge_prime(
 ) -> BigUint {
     let mut hasher = Sha256::new();
     hasher.update(b"VTP-WESOLOWSKI-CHALLENGE");
-    hasher.update(&generator.to_bytes());
-    hasher.update(&output.to_bytes());
-    hasher.update(&t.to_be_bytes());
+    hasher.update(generator.to_bytes());
+    hasher.update(output.to_bytes());
+    hasher.update(t.to_be_bytes());
     let hash = hasher.finalize();
 
     let mut candidate = BigUint::from_bytes_be(&hash);

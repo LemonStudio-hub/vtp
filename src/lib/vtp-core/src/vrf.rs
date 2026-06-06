@@ -262,14 +262,14 @@ pub fn prove(secret_key: &[u8], alpha: &[u8]) -> Vec<u8> {
     let h_point = encode_to_curve_tai(&public_key_bytes, alpha);
 
     // Compute gamma = H * sk
-    let gamma = &h_point * &sk_scalar;
+    let gamma = h_point * sk_scalar;
 
     // Generate nonce k
     let k = generate_nonce(secret_key, &h_point);
 
     // Compute U = G * k, V = H * k
     let u_point = ED25519_BASEPOINT_TABLE * &k;
-    let v_point = &h_point * &k;
+    let v_point = h_point * k;
 
     // Compute challenge c
     let c = compute_challenge(&h_point, &pk_point, &gamma, &u_point, &v_point);
@@ -392,10 +392,10 @@ pub fn verify(public_key: &[u8], alpha: &[u8], proof: &[u8]) -> bool {
     let h_point = encode_to_curve_tai(public_key, alpha);
 
     // Compute U = G*s - PK*c
-    let u_point = ED25519_BASEPOINT_TABLE * &s - &pk_point * &c;
+    let u_point = ED25519_BASEPOINT_TABLE * &s - pk_point * c;
 
     // Compute V = H*s - gamma*c
-    let v_point = &h_point * &s - &gamma * &c;
+    let v_point = h_point * s - gamma * c;
 
     // Compute expected challenge
     let expected_c = compute_challenge(&h_point, &pk_point, &gamma, &u_point, &v_point);
