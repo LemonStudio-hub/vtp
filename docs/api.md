@@ -237,7 +237,7 @@ pub fn generate_proof(seed: &[u8], state_bytes: &[u8], total: u64) -> Vec<u8>
 
 #### `verify_proof`
 
-Verify a Wesolowski proof. Checks that pi^l * g^q == y where l = Hash(g, y, T).
+Verify a Wesolowski proof. Checks that pi^l \* g^q == y where l = Hash(g, y, T).
 
 ```rust
 pub fn verify_proof(seed: &[u8], state_bytes: &[u8], total: u64, proof_bytes: &[u8]) -> bool
@@ -252,6 +252,7 @@ pub fn verify_proof(seed: &[u8], state_bytes: &[u8], total: u64, proof_bytes: &[
 | `proof_bytes` | `&[u8]` | The proof pi |
 
 **Returns:**
+
 - `true`: The proof is valid
 - `false`: The proof is invalid
 
@@ -397,6 +398,7 @@ pub fn verify_vdf_proof(&self, proof_bytes: &[u8]) -> bool
 | `proof_bytes` | `&[u8]` | The Wesolowski proof bytes |
 
 **Returns:**
+
 - `true`: The proof is valid
 - `false`: The proof is invalid or verification failed
 

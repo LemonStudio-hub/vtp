@@ -146,8 +146,6 @@ use wasm_bindgen::prelude::*;
 /// - GCD: O(d^2) bit operations
 const DISCRIMINANT_BITS: u32 = 256;
 
-
-
 // ============================================================================
 // Binary Quadratic Form (BQF)
 // ============================================================================
@@ -294,10 +292,7 @@ impl ClassGroupElement {
     /// - `discriminant`: class group discriminant Delta < 0
     fn new(a: BigInt, b: BigInt, discriminant: BigInt) -> Self {
         let c = (&b * &b - &discriminant) / (4_i32 * &a);
-        Self {
-            form: Bqf::new(a, b, c),
-            discriminant,
-        }
+        Self { form: Bqf::new(a, b, c), discriminant }
     }
 
     /// The identity element of the class group (principal form).
@@ -314,11 +309,7 @@ impl ClassGroupElement {
     ///   c = (1 - (-7)) / 4 = 2
     ///   Identity = (1, 1, 2), corresponding to x^2 + xy + 2y^2
     fn identity(discriminant: &BigInt) -> Self {
-        let b0 = if discriminant % 4 == BigInt::from(0) {
-            BigInt::zero()
-        } else {
-            BigInt::one()
-        };
+        let b0 = if discriminant % 4 == BigInt::from(0) { BigInt::zero() } else { BigInt::one() };
         Self::new(BigInt::one(), b0, discriminant.clone())
     }
 
@@ -581,8 +572,7 @@ impl ClassGroupElement {
         if data.len() < b_start + 4 {
             return None;
         }
-        let b_len =
-            u32::from_be_bytes(data[b_start..b_start + 4].try_into().ok()?) as usize;
+        let b_len = u32::from_be_bytes(data[b_start..b_start + 4].try_into().ok()?) as usize;
         if data.len() < b_start + 4 + b_len {
             return None;
         }
@@ -721,11 +711,7 @@ fn extended_gcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
     if b.is_zero() {
         return (
             a.abs(),
-            if a.is_negative() {
-                -BigInt::one()
-            } else {
-                BigInt::one()
-            },
+            if a.is_negative() { -BigInt::one() } else { BigInt::one() },
             BigInt::zero(),
         );
     }
@@ -778,9 +764,7 @@ fn extended_gcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
 /// # Determinism
 ///
 /// The same seed always produces the same (Delta, g) pair.
-fn derive_discriminant_and_generator(
-    seed: &[u8],
-) -> (BigInt, ClassGroupElement) {
+fn derive_discriminant_and_generator(seed: &[u8]) -> (BigInt, ClassGroupElement) {
     // Derive discriminant.
     let mut hasher = Sha256::new();
     hasher.update(b"VTP-VDF-DISCRIMINANT");
@@ -1108,8 +1092,7 @@ pub fn generate_proof(seed: &[u8], state_bytes: &[u8], total: u64) -> Vec<u8> {
     let (discriminant, generator) = derive_discriminant_and_generator(seed);
 
     // Deserialise output y.
-    let y = ClassGroupElement::from_bytes(state_bytes, &discriminant)
-        .expect("invalid state bytes");
+    let y = ClassGroupElement::from_bytes(state_bytes, &discriminant).expect("invalid state bytes");
 
     // Fiat-Shamir challenge.
     let l = compute_challenge_prime(&generator, &y, total);
@@ -1142,18 +1125,12 @@ pub fn generate_proof(seed: &[u8], state_bytes: &[u8], total: u64) -> Vec<u8> {
 ///
 /// Returns `true` if the proof is valid, `false` otherwise.
 #[wasm_bindgen]
-pub fn verify_proof(
-    seed: &[u8],
-    state_bytes: &[u8],
-    total: u64,
-    proof_bytes: &[u8],
-) -> bool {
-    let (discriminant, generator) = match std::panic::catch_unwind(|| {
-        derive_discriminant_and_generator(seed)
-    }) {
-        Ok(v) => v,
-        Err(_) => return false,
-    };
+pub fn verify_proof(seed: &[u8], state_bytes: &[u8], total: u64, proof_bytes: &[u8]) -> bool {
+    let (discriminant, generator) =
+        match std::panic::catch_unwind(|| derive_discriminant_and_generator(seed)) {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
 
     let y = match ClassGroupElement::from_bytes(state_bytes, &discriminant) {
         Some(v) => v,

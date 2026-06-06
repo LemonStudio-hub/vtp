@@ -150,16 +150,16 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 
 ### Technology Stack
 
-| Layer            | Technology       | Purpose                    |
-| ---------------- | ---------------- | -------------------------- |
-| **Frontend**     | Svelte 4         | Reactive UI framework      |
-| **Build Tool**   | Vite 5           | Fast development and build |
-| **Language**     | TypeScript 5     | Type-safe JavaScript       |
-| **Core Library** | Rust + wasm-pack | High-performance Wasm      |
-| **Crypto**       | Wesolowski VDF + ED25519 | VDF and VRF operations |
-| **Styling**      | CSS              | Component styling          |
-| **Storage**      | IndexedDB        | Checkpoint persistence     |
-| **PWA**          | Workbox          | Service worker caching     |
+| Layer            | Technology               | Purpose                    |
+| ---------------- | ------------------------ | -------------------------- |
+| **Frontend**     | Svelte 4                 | Reactive UI framework      |
+| **Build Tool**   | Vite 5                   | Fast development and build |
+| **Language**     | TypeScript 5             | Type-safe JavaScript       |
+| **Core Library** | Rust + wasm-pack         | High-performance Wasm      |
+| **Crypto**       | Wesolowski VDF + ED25519 | VDF and VRF operations     |
+| **Styling**      | CSS                      | Component styling          |
+| **Storage**      | IndexedDB                | Checkpoint persistence     |
+| **PWA**          | Workbox                  | Service worker caching     |
 
 ---
 

@@ -73,7 +73,9 @@ export class AudioKeepAlive {
     if (this.started) return true;
 
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) {
         console.warn('[AudioKeepAlive] AudioContext not supported');
         return false;

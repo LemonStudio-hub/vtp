@@ -240,9 +240,8 @@ fn compute_challenge(
 /// Panics if `secret_key` length is not 32 bytes.
 #[wasm_bindgen]
 pub fn prove(secret_key: &[u8], alpha: &[u8]) -> Vec<u8> {
-    let signing_key = SigningKey::from_bytes(
-        secret_key.try_into().expect("Invalid secret key length"),
-    );
+    let signing_key =
+        SigningKey::from_bytes(secret_key.try_into().expect("Invalid secret key length"));
     let verifying_key = signing_key.verifying_key();
     let public_key_bytes = verifying_key.to_bytes();
 
@@ -251,15 +250,13 @@ pub fn prove(secret_key: &[u8], alpha: &[u8]) -> Vec<u8> {
     let hash = Sha512::digest(secret_key);
     let mut sk_bytes = [0u8; 32];
     sk_bytes.copy_from_slice(&hash[..32]);
-    sk_bytes[0] &= 248;  // Clear lowest 3 bits
+    sk_bytes[0] &= 248; // Clear lowest 3 bits
     sk_bytes[31] &= 127; // Clear highest bit
-    sk_bytes[31] |= 64;  // Set second-to-last bit
+    sk_bytes[31] |= 64; // Set second-to-last bit
     let sk_scalar = Scalar::from_bytes_mod_order(sk_bytes);
 
     // Get public key point
-    let pk_point = CompressedEdwardsY(public_key_bytes)
-        .decompress()
-        .expect("Invalid public key");
+    let pk_point = CompressedEdwardsY(public_key_bytes).decompress().expect("Invalid public key");
 
     // Encode alpha to curve point H
     let h_point = encode_to_curve_tai(&public_key_bytes, alpha);

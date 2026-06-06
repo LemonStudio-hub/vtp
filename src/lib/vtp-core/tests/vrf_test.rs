@@ -16,7 +16,7 @@
 
 #[cfg(test)]
 mod tests {
-    use vtp_core::vrf::{generate_keypair, prove, proof_to_hash, verify};
+    use vtp_core::vrf::{generate_keypair, proof_to_hash, prove, verify};
 
     /// Tests that [`generate_keypair`] produces keys of the expected size.
     ///

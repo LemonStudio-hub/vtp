@@ -63,25 +63,25 @@ VTP Node is a single-node prototype implementation of the **Verifiable Time Proo
 
 ### Core Features
 
-| Feature                 | Description                                         | Status      |
-| ----------------------- | --------------------------------------------------- | ----------- |
+| Feature                 | Description                                                        | Status      |
+| ----------------------- | ------------------------------------------------------------------ | ----------- |
 | **VDF Engine**          | Wesolowski VDF over imaginary quadratic class groups (WebAssembly) | ✅ Complete |
-| **VRF Implementation**  | ECVRF-ED25519 proof generation and verification     | ✅ Complete |
-| **Web Worker**          | Background computation with time-slicing            | ✅ Complete |
-| **Real-time Dashboard** | Live progress visualization with Canvas 2D          | ✅ Complete |
-| **PWA Support**         | Installable Progressive Web App                     | ✅ Complete |
-| **Checkpoint System**   | Automatic persistence with IndexedDB                | ✅ Complete |
-| **Adaptive Scheduling** | AudioContext-based background execution             | ✅ Complete |
+| **VRF Implementation**  | ECVRF-ED25519 proof generation and verification                    | ✅ Complete |
+| **Web Worker**          | Background computation with time-slicing                           | ✅ Complete |
+| **Real-time Dashboard** | Live progress visualization with Canvas 2D                         | ✅ Complete |
+| **PWA Support**         | Installable Progressive Web App                                    | ✅ Complete |
+| **Checkpoint System**   | Automatic persistence with IndexedDB                               | ✅ Complete |
+| **Adaptive Scheduling** | AudioContext-based background execution                            | ✅ Complete |
 
 ### Performance Targets
 
-| Metric               | Target         | Description                     |
-| -------------------- | -------------- | ------------------------------- |
+| Metric               | Target                    | Description                       |
+| -------------------- | ------------------------- | --------------------------------- |
 | VDF Speed            | Class group squarings/sec | Sequential class group operations |
-| VDF Verification     | O(log l) group ops       | Wesolowski proof verification     |
-| VRF Latency          | ≤ 1ms          | Proof generation time           |
-| Background Retention | ≥ 50%          | Speed when tab is in background |
-| Memory Stability     | < 10MB growth  | Over 30 minutes of operation    |
+| VDF Verification     | O(log l) group ops        | Wesolowski proof verification     |
+| VRF Latency          | ≤ 1ms                     | Proof generation time             |
+| Background Retention | ≥ 50%                     | Speed when tab is in background   |
+| Memory Stability     | < 10MB growth             | Over 30 minutes of operation      |
 
 ---
 
