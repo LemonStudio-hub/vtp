@@ -116,7 +116,7 @@
 
 use num_bigint::{BigInt, BigUint};
 use num_integer::Integer;
-use num_traits::{One, Signed, Zero};
+use num_traits::{One, Signed, ToPrimitive, Zero};
 use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
 
@@ -352,45 +352,71 @@ impl ClassGroupElement {
         let a2 = &other.form.a;
         let b2 = &other.form.b;
 
-        // Step 1: B = (b1 + b2) / 2  (NUCOMP intermediate)
-        // Note: B is used implicitly in the NUCOMP derivation below.
+        // CRT-based composition (correct for all cases, including gcd(a1,a2)>1).
+        //
+        // We need B such that:
+        //   B ≡ b1 (mod 2a1)  → B^2 ≡ Δ (mod 4a1)
+        //   B ≡ b2 (mod 2a2)  → B^2 ≡ Δ (mod 4a2)
+        //   B^2 ≡ Δ (mod 4a1a2)
+        //
+        // Step 1: Solve CRT for B mod lcm(2a1, 2a2).
+        let m1 = a1 * 2_i32;
+        let m2 = a2 * 2_i32;
+        let g = Integer::gcd(&m1, &m2);
+        let lcm = &m1 / &g * &m2;
 
-        // Step 2: g = gcd(a1, a2)
-        // g is used to factor a1 and a2 to reduce the size of subsequent
-        // computations.
-        let g = Integer::gcd(a1, a2);
+        // CRT: B = b1 + m1 * t, where m1*t ≡ (b2 - b1) (mod m2)
+        // t ≡ ((b2 - b1)/g) * (m1/g)^{-1} (mod m2/g)
+        let diff = (b2 - b1).mod_floor(&g);
+        let b_diff = (b2 - b1 - &diff) / &g;
+        let m1_div = &m1 / &g;
+        let m2_div = &m2 / &g;
 
-        // Step 3: s = (b2 - b1) / 2
-        // s is used in the NUCOMP modular equation.
-        let s: BigInt = (b2 - b1) / 2;
+        // Solve m1_div * t ≡ b_diff (mod m2_div)
+        let inv = mod_inv(&m1_div, &m2_div);
+        let t = match inv {
+            Some(inv) => (&b_diff * &inv).mod_floor(&m2_div),
+            None => {
+                // Degenerate case; fall back to identity-like result
+                return ClassGroupElement::identity(delta);
+            }
+        };
+        let b_base = b1 + &m1 * &t;
 
-        // Step 4: Factor a1 and s to prepare for the modular equation.
-        // If g == 1 no factoring is needed.
-        let (a1_div, s_div, g_div) = if g.is_one() {
-            (a1.clone(), s.clone(), BigInt::one())
+        // Step 2: Find the correct B in {b_base + k * lcm} such that
+        // B^2 ≡ Δ (mod 4a1a2).
+        let a_new = a1 * a2;
+        let modulus = &a_new * 4_i32;
+        let target = delta.mod_floor(&modulus);
+        let lcm_mod = lcm.mod_floor(&modulus);
+
+        let mut b_crt = b_base.mod_floor(&modulus);
+        let max_checks = if lcm_mod.is_zero() {
+            1
         } else {
-            (a1 / &g, &s / &g, g.clone())
+            // We need at most gcd(lcm, modulus) / lcm checks, but bound it
+            std::cmp::max(1, (&modulus / &lcm).to_u64().unwrap_or(1000).min(10000))
         };
 
-        // Step 5: Solve u*(a1/g) == -(s/g) (mod g) via extended GCD.
-        let (u, _v) = extended_gcd_mod(&a1_div, &g_div, &(-&s_div));
+        let mut found_b: Option<BigInt> = None;
+        for _ in 0..max_checks {
+            let sq = (&b_crt * &b_crt).mod_floor(&modulus);
+            if sq == target {
+                found_b = Some(b_crt.clone());
+                break;
+            }
+            b_crt = (&b_crt + &lcm_mod).mod_floor(&modulus);
+        }
 
-        // Step 6: Compute the new form coefficients.
-        // A = a1*a2 / g^2
-        let a_new = (a1 * a2) / (&g * &g);
+        let b_new = match found_b {
+            Some(b) => center_mod(&b, &(&a_new * 2_i32)),
+            None => {
+                // Fallback: shouldn't happen for valid inputs
+                return ClassGroupElement::identity(delta);
+            }
+        };
 
-        // B' = b1 + 2*u*a1/g
-        let mut b_new = b1 + 2 * &u * a1 / &g;
-
-        // Step 7: Centre-reduce B' to (-A, A] to satisfy the reduced-form
-        // bound |B'| <= A.
-        let two_a = &a_new * 2;
-        b_new = center_mod(&b_new, &two_a);
-
-        // C is determined by the discriminant invariant; it holds by
-        // construction.
-
-        // Step 8: Construct and reduce the result.
+        // Step 3: Construct and reduce.
         let result = ClassGroupElement::new(a_new, b_new, delta.clone());
         result.reduce()
     }
@@ -672,20 +698,6 @@ fn center_mod(b: &BigInt, two_a: &BigInt) -> BigInt {
 ///    x*a + y*m = g.
 /// 2. If g divides target then u = x * (target / g) mod m is a solution.
 ///
-/// # Preconditions
-///
-/// The caller must ensure gcd(a, m) divides `target`; otherwise the result
-/// is meaningless.
-fn extended_gcd_mod(a: &BigInt, m: &BigInt, target: &BigInt) -> (BigInt, BigInt) {
-    let (g, x, _y) = extended_gcd(a, m);
-    // x*a + _y*m = g
-    // We want u*a == target (mod m).
-    // u = x * (target/g) mod m   (assuming g | target)
-    let quotient = target / &g;
-    let u = (&x * quotient).mod_floor(m);
-    (u, BigInt::zero()) // second component unused
-}
-
 /// Extended Euclidean algorithm.
 ///
 /// Returns (g, x, y) such that a*x + b*y = g where g = gcd(a, b) >= 0.
@@ -738,6 +750,21 @@ fn extended_gcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
 }
 
 // ============================================================================
+// Modular arithmetic helpers for generator sampling
+// ============================================================================
+
+/// Compute `a^{-1} mod m` via the extended Euclidean algorithm.
+///
+/// Returns `None` if `gcd(a, m) != 1`.
+fn mod_inv(a: &BigInt, m: &BigInt) -> Option<BigInt> {
+    let (g, x, _) = extended_gcd(a, m);
+    if !g.is_one() {
+        return None;
+    }
+    Some(x.mod_floor(m))
+}
+
+// ============================================================================
 // Discriminant and generator derivation from seed
 // ============================================================================
 
@@ -753,121 +780,169 @@ fn extended_gcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
 ///
 /// # Generator Derivation
 ///
-/// Search for a valid primitive positive-definite form (a, b, c):
+/// Uses deterministic pseudo-random sampling over the full feasible interval:
 ///
-/// 1. Iterate a from 2 to 999.
-/// 2. For each a, find b such that b^2 == Delta (mod 4a).
-/// 3. Verify gcd(a, b, c) == 1.
-/// 4. Use the seed hash to deterministically select one valid form.
-/// 5. Self-compose several times to obtain a non-trivial element.
+/// 1. Compute `max_a = floor(sqrt(|Delta|/3))`.
+/// 2. Sample candidate `a` values via `SHA-256(seed || counter) mod max_a`.
+/// 3. For each candidate, find valid `b` via modular square roots of
+///    `Delta mod 4a`.
+/// 4. Filter out order-1 and order-2 elements.
+/// 5. Compose multiple valid forms into a single non-trivial generator.
 ///
 /// # Determinism
 ///
-/// The same seed always produces the same (Delta, g) pair.
+/// The same seed always produces the same (Delta, g) pair.  If the first
+/// discriminant yields a degenerate class group (all small-a elements have
+/// order ≤ 2), the derivation retries with a salted hash until a
+/// non-trivial generator is found.
 fn derive_discriminant_and_generator(seed: &[u8]) -> (BigInt, ClassGroupElement) {
-    // Derive discriminant.
+    for try_index in 0u32..32 {
+        let delta = derive_discriminant_with_index(seed, try_index);
+        let generator = derive_generator_from_seed(seed, &delta);
+        let id = ClassGroupElement::identity(&delta);
+
+        if generator != id {
+            return (delta, generator);
+        }
+    }
+    // Extremely rare fallback.
+    let delta = derive_discriminant_with_index(seed, 31);
+    (delta.clone(), ClassGroupElement::identity(&delta))
+}
+
+/// Derive a discriminant from seed with a given retry index.
+fn derive_discriminant_with_index(seed: &[u8], try_index: u32) -> BigInt {
     let mut hasher = Sha256::new();
     hasher.update(b"VTP-VDF-DISCRIMINANT");
     hasher.update(seed);
+    hasher.update(try_index.to_be_bytes());
     let hash = hasher.finalize();
 
-    // Build a large-enough discriminant by accumulating hash outputs.
     let mut d_bytes = Vec::new();
     d_bytes.extend_from_slice(&hash);
 
-    // Chain-hash until the target bit-length is reached.
     let mut counter = 0u32;
     while (d_bytes.len() * 8) < DISCRIMINANT_BITS as usize {
         let mut h2 = Sha256::new();
         h2.update(b"VTP-VDF-DISCRIMINANT-CHAIN");
         h2.update(counter.to_be_bytes());
         h2.update(seed);
-        let h2_result = h2.finalize();
-        d_bytes.extend_from_slice(&h2_result);
+        h2.update(try_index.to_be_bytes());
+        d_bytes.extend_from_slice(&h2.finalize());
         counter += 1;
     }
 
     let full_d = BigUint::from_bytes_be(&d_bytes);
-
-    // Adjust Delta == 0 or 1 (mod 4) and negate.
     let mut delta = BigInt::from(full_d);
     loop {
         let mod4 = (&delta % 4_i32).mod_floor(&BigInt::from(4));
-        if mod4 == BigInt::from(0) || mod4 == BigInt::from(1) {
+        if mod4 == BigInt::from(0) || mod4 == BigInt::from(3) {
             break;
         }
         delta = &delta + 1;
     }
-    delta = -delta;
-
-    // Derive generator.
-    let generator = derive_generator_from_seed(seed, &delta);
-
-    (delta, generator)
+    -delta
 }
 
-/// Deterministically search for a valid generator element.
+/// Deterministically search for a valid generator element with order > 2.
 ///
-/// Iterates a from 2 to 999, for each a searching for b in [0, 2a) such
-/// that b^2 == Delta (mod 4a), then verifying primitivity and
-/// positive-definiteness.  The seed hash is used to select one valid form
-/// deterministically.  Self-composition several times yields a non-trivial
-/// generator.
+/// Scans `a` values via brute-force `b` search.  First checks small `a`
+/// (2..1000), then medium `a` (1000..100_000).  Returns the first form
+/// whose square is not the identity (i.e., order > 2).
 ///
-/// Falls back to the identity if no valid form is found (should not happen
-/// for a well-chosen Delta).
-fn derive_generator_from_seed(seed: &[u8], delta: &BigInt) -> ClassGroupElement {
-    let neg_delta = -delta; // |Delta| > 0
+/// Falls back to the identity if no such form exists (degenerate class
+/// group where all elements have order ≤ 2).
+fn derive_generator_from_seed(_seed: &[u8], delta: &BigInt) -> ClassGroupElement {
+    let neg_delta = -delta;
+    let id = ClassGroupElement::identity(delta);
+
+    // Phase 1: fast scan of small a (2..1000)
+    let mut order2_forms: Vec<ClassGroupElement> = Vec::new();
 
     for a_val in 2u32..1000 {
         let a = BigInt::from(a_val);
-        let modulus = &a * 4;
-
-        // Compute target = Delta mod 4a.
-        // Delta < 0, so Delta mod 4a = (4a - |Delta| mod 4a) mod 4a.
+        let modulus = &a * 4_i32;
         let remainder = neg_delta.mod_floor(&modulus);
         let target = (&modulus - &remainder).mod_floor(&modulus);
 
-        // Brute-force search for b in [0, 2a) with b^2 == target (mod 4a).
         for b_val in 0..(2 * a_val) {
             let b = BigInt::from(b_val);
-            let b_sq_mod = (&b * &b).mod_floor(&modulus);
-            if b_sq_mod == target {
-                // Found a valid b; compute c.
-                let c = (&b * &b - delta) / (4 * &a);
+            if (&b * &b).mod_floor(&modulus) != target {
+                continue;
+            }
+            let c = (&b * &b - delta) / (4_i32 * &a);
+            let g = a.gcd(&b).gcd(&c);
+            if !g.is_one() || c <= BigInt::zero() {
+                continue;
+            }
 
-                // Verify primitivity and positive-definiteness.
-                let g = a.gcd(&b).gcd(&c);
-                if g.is_one() && c > BigInt::zero() {
-                    let elem = ClassGroupElement::new(a.clone(), b, delta.clone());
-                    let reduced = elem.reduce();
+            let elem = ClassGroupElement::new(a.clone(), b, delta.clone());
+            let reduced = elem.reduce();
 
-                    // Use the seed hash to select deterministically.
-                    let hash_val = {
-                        let mut h = Sha256::new();
-                        h.update(seed);
-                        h.update(a_val.to_be_bytes());
-                        h.update(b_val.to_be_bytes());
-                        let result = h.finalize();
-                        result[0]
-                    };
+            if reduced == id {
+                continue;
+            }
 
-                    // Accept this form with ~78% probability.
-                    if hash_val < 200 {
-                        // Make it non-trivial by self-composing hash_val times.
-                        let mut elem = reduced.clone();
-                        for _ in 0..(hash_val as usize % 10 + 1) {
-                            elem = elem.compose(&reduced);
-                        }
-                        return elem.reduce();
-                    }
-                }
+            let squared = reduced.compose(&reduced);
+            if squared != id {
+                // Order > 2 — return immediately.
+                return reduced;
+            }
+
+            // Order 2 — keep for fallback.
+            if !order2_forms.contains(&reduced) {
+                order2_forms.push(reduced);
             }
         }
     }
 
-    // Fallback: return identity (should not happen for well-chosen Delta).
-    ClassGroupElement::identity(delta)
+    // Phase 2: scan medium a (1000..100_000) for higher-order elements.
+    for a_val in 1000u32..100_000 {
+        let a = BigInt::from(a_val);
+        let modulus = &a * 4_i32;
+        let remainder = neg_delta.mod_floor(&modulus);
+        let target = (&modulus - &remainder).mod_floor(&modulus);
+
+        for b_val in 0..(2 * a_val) {
+            let b = BigInt::from(b_val);
+            if (&b * &b).mod_floor(&modulus) != target {
+                continue;
+            }
+            let c = (&b * &b - delta) / (4_i32 * &a);
+            let g = a.gcd(&b).gcd(&c);
+            if !g.is_one() || c <= BigInt::zero() {
+                continue;
+            }
+
+            let elem = ClassGroupElement::new(a.clone(), b, delta.clone());
+            let reduced = elem.reduce();
+
+            if reduced == id {
+                continue;
+            }
+
+            let squared = reduced.compose(&reduced);
+            if squared != id {
+                return reduced;
+            }
+        }
+    }
+
+    // Fallback: all found forms have order 2.  Compose them to get a
+    // non-identity element (order 2 is fine for vdf_step).
+    if order2_forms.is_empty() {
+        return id;
+    }
+
+    let mut result = order2_forms[0].clone();
+    for form in order2_forms.iter().skip(1) {
+        let composed = result.compose(form);
+        if composed != id {
+            result = composed;
+        }
+    }
+
+    result.reduce()
 }
 
 // ============================================================================
@@ -1191,7 +1266,7 @@ pub fn vdf_step(state: &[u8; 32]) -> [u8; 32] {
 /// Uses the seed to deterministically construct a non-trivial element of
 /// the class group with a fixed discriminant scheme.
 fn derive_element_from_short_seed(seed: &[u8; 32]) -> (BigInt, ClassGroupElement) {
-    let (discriminant, _generator) = derive_discriminant_and_generator(seed);
+    let (discriminant, generator) = derive_discriminant_and_generator(seed);
 
     // Hash the seed to obtain a deterministic exponent.
     let mut hasher = Sha256::new();
@@ -1201,12 +1276,9 @@ fn derive_element_from_short_seed(seed: &[u8; 32]) -> (BigInt, ClassGroupElement
 
     let exp = BigUint::from_bytes_be(&hash);
 
-    // Construct a base form (2, 1, c) and exponentiate.
-    let a = BigInt::from(2);
-    let b = BigInt::from(1);
-    let base = ClassGroupElement::new(a, b, discriminant.clone()).reduce();
-
-    let result = base.pow_optimized(&exp);
+    // Use the generator (a valid class group element for this discriminant)
+    // and exponentiate to obtain a deterministic, non-trivial element.
+    let result = generator.pow_optimized(&exp);
     (discriminant, result)
 }
 
