@@ -41,7 +41,7 @@ import type { CryptoProvider } from '$lib/consensus/crypto-provider';
 // The generated code is imported dynamically at init time to avoid
 // hard failures if the proto hasn't been generated yet.
 
-let vtpProto: typeof import('../../../proto/vtp_messages') | null = null;
+let vtpProto: typeof import('$proto/vtp_messages') | null = null;
 
 /**
  * Initialize the codec with the generated Protobuf module.
@@ -49,7 +49,7 @@ let vtpProto: typeof import('../../../proto/vtp_messages') | null = null;
  */
 export async function initCodec(): Promise<void> {
   try {
-    vtpProto = await import('../../../proto/vtp_messages.js');
+    vtpProto = await import('$proto/vtp_messages.js');
   } catch {
     console.warn(
       '[MessageCodec] Protobuf module not found. Run `cd proto && npm run generate` first.'
