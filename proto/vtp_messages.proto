@@ -1,0 +1,131 @@
+// VTP Consensus Message Protocol
+//
+// Defines the wire format for peer-to-peer consensus messages exchanged
+// over WebRTC DataChannels. All messages are wrapped in a SignedMessage
+// envelope that carries the sender's Ed25519 public key and signature
+// for authentication.
+//
+// Design principles:
+// - Compact binary encoding via Protocol Buffers
+// - Every message is signed (no unsigned channel)
+// - Timestamp window prevents replay attacks (±30s)
+// - Extensible via oneof body variants
+
+syntax = "proto3";
+
+package vtp;
+
+option optimize_for = LITE_RUNTIME;
+
+// ─── Envelope ────────────────────────────────────────────────────────
+
+// Top-level wrapper transmitted over the DataChannel.
+// The signature covers `payload` bytes only (not the envelope fields),
+// so the receiver must serialize the inner MessageBody independently
+// before calling Ed25519 verify.
+message SignedMessage {
+  // Serialized MessageBody bytes
+  bytes payload = 1;
+
+  // 32-byte Ed25519 public key of the sender
+  bytes sender_pubkey = 2;
+
+  // 64-byte Ed25519 signature over `payload`
+  bytes signature = 3;
+
+  // Unix epoch milliseconds — receivers reject messages outside ±30 s window
+  uint64 timestamp = 4;
+}
+
+// ─── Inner Payload ───────────────────────────────────────────────────
+
+message MessageBody {
+  oneof body {
+    Ping ping = 1;
+    Pong pong = 2;
+    CheckpointAnnounce checkpoint = 3;
+    WinnerAnnounce winner = 4;
+    PeerDiscovery peer_info = 5;
+    VdfProgress vdf_progress = 6;
+    ConsensusProposal consensus_proposal = 7;
+    ConsensusVote consensus_vote = 8;
+    NewRound new_round = 9;
+  }
+}
+
+// ─── Heartbeat ───────────────────────────────────────────────────────
+
+// Liveness probe; peer responds with Pong carrying the same nonce.
+message Ping {
+  uint64 nonce = 1;
+}
+
+// Response to a Ping.
+message Pong {
+  uint64 nonce = 1;
+}
+
+// ─── Consensus Messages ─────────────────────────────────────────────
+
+// Broadcast when a node reaches a VDF checkpoint step.
+// Other nodes can verify the VRF proof and VDF state independently.
+message CheckpointAnnounce {
+  uint64 step = 1;
+  bytes vdf_state = 2;      // 32-byte VDF state hash at this step
+  bytes vrf_proof = 3;      // 80-byte VRF proof
+  bytes sender_pubkey = 4;  // redundant with envelope, but useful standalone
+}
+
+// Broadcast when a node wins the VRF lottery.
+message WinnerAnnounce {
+  uint64 step = 1;
+  bytes vrf_proof = 2;      // 80-byte VRF proof
+  bytes sender_pubkey = 3;
+}
+
+// Periodic presence announcement for peer discovery within a room.
+message PeerDiscovery {
+  string node_id = 1;
+  bytes public_key = 2;     // 32-byte Ed25519 public key
+  repeated string addresses = 3; // known multiaddrs or ICE candidates
+}
+
+// Lightweight progress share (optional, for network-wide stats).
+message VdfProgress {
+  uint64 step = 1;
+  uint64 speed = 2;         // steps per second
+}
+
+// ─── BFT Consensus Messages ───────────────────────────────────────
+
+// Vote phase for the two-phase BFT protocol.
+enum VotePhase {
+  PREVOTE = 0;
+  PRECOMMIT = 1;
+}
+
+// Leader's block proposal for a consensus round.
+// Contains the VDF checkpoint state and the VRF proof of leader election.
+message ConsensusProposal {
+  uint64 round = 1;           // consensus round number
+  bytes vdf_state = 2;        // 32-byte VDF state at checkpoint
+  bytes vrf_proof = 3;        // 80-byte VRF proof of leader election
+  bytes block_hash = 4;       // 32-byte SHA-256 of the block header
+  bytes prev_block_hash = 5;  // 32-byte hash of the previous block
+  uint64 timestamp = 6;       // Unix epoch ms
+}
+
+// Validator's vote (prevote or precommit) in the BFT protocol.
+message ConsensusVote {
+  uint64 round = 1;           // consensus round number
+  VotePhase phase = 2;        // PREVOTE or PRECOMMIT
+  bytes block_hash = 3;       // 32-byte block hash (empty = nil vote)
+  bytes voter_pubkey = 4;     // 32-byte voter's public key
+}
+
+// New round announcement with the validator set.
+message NewRound {
+  uint64 round = 1;           // round number
+  bytes seed = 2;             // 32-byte seed derived from previous block
+  repeated bytes validators = 3; // validator set public keys
+}

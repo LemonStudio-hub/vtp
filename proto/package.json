@@ -1,0 +1,15 @@
+{
+  "name": "vtp-proto",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Protobuf definitions and generated code for VTP consensus messages",
+  "scripts": {
+    "generate": "pbjs -t static-module -w es6 -o vtp_messages.js vtp_messages.proto && pbts -o vtp_messages.d.ts vtp_messages.js",
+    "generate:ts": "node generate.js"
+  },
+  "devDependencies": {
+    "protobufjs": "^7.2.0",
+    "protobufjs-cli": "^1.1.0"
+  }
+}

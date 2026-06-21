@@ -22,11 +22,14 @@
   - [Web Worker](#web-worker)
   - [Svelte Frontend](#svelte-frontend)
   - [PWA Layer](#pwa-layer)
+  - [Network Layer](#network-layer)
+  - [Consensus Layer](#consensus-layer)
 - [Data Flow](#data-flow)
   - [Initialization Flow](#initialization-flow)
   - [Computation Flow](#computation-flow)
   - [Checkpoint Flow](#checkpoint-flow)
   - [Communication Protocol](#communication-protocol)
+  - [Consensus Round Flow](#consensus-round-flow)
 - [Performance](#performance)
   - [Optimization Strategies](#optimization-strategies)
   - [Memory Management](#memory-management)
@@ -86,6 +89,18 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 │  └────────────────────────────┼─────────────────────────────────────┘ │
 │                               │                                       │
 │  ┌────────────────────────────┴─────────────────────────────────────┐ │
+│  │                      Network Layer                                │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │ │
+│  │  │  PeerManager │  │  WebRTC     │  │  MessageCodec           │ │ │
+│  │  │  (P2P mgmt)  │  │  DataChannel│  │  (Protobuf + Ed25519)   │ │ │
+│  │  └──────────────┘  └─────────────┘  └─────────────────────────┘ │ │
+│  │  ┌─────────────┐  ┌─────────────┐                                │ │
+│  │  │  Signaling   │  │  PeerConn   │                                │ │
+│  │  │  (CF DO WS)  │  │  (ICE/STUN) │                                │ │
+│  │  └──────────────┘  └─────────────┘                                │ │
+│  └────────────────────────────┬─────────────────────────────────────┘ │
+│                               │                                       │
+│  ┌────────────────────────────┴─────────────────────────────────────┐ │
 │  │                      Communication Layer                         │ │
 │  │                      (postMessage API)                           │ │
 │  └────────────────────────────┬─────────────────────────────────────┘ │
@@ -97,8 +112,8 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 │  │  │  ┌─────────────────────────────────────────────────────┐   │ │ │
 │  │  │  │              vtp-core (WebAssembly)                  │   │ │ │
 │  │  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │   │ │ │
-│  │  │  │  │  VDF Engine │  │  VRF Engine │  │   Session   │ │   │ │ │
-│  │  │  │  │ (Class Grp) │  │ (ED25519)   │  │   Manager   │ │   │ │ │
+│  │  │  │  │  VDF Engine │  │  VRF Engine │  │  Consensus  │ │   │ │ │
+│  │  │  │  │ (Class Grp) │  │ (ED25519)   │  │   Engine    │ │   │ │ │
 │  │  │  │  └─────────────┘  └─────────────┘  └─────────────┘ │   │ │ │
 │  │  │  └─────────────────────────────────────────────────────┘   │ │ │
 │  │  │  ┌─────────────────────────────────────────────────────┐   │ │ │
@@ -128,6 +143,14 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 - **Identity Badge**: Node identity visualization
 - **VDF Canvas**: Progress visualization
 
+#### Network Layer
+
+- **PeerManager**: Multi-peer orchestrator that coordinates signaling, WebRTC connections, and message codec. Manages the full lifecycle of peer discovery, connection establishment, and graceful teardown.
+- **WebRTC DataChannel**: Binary P2P transport with IPv6-prioritized ICE candidate selection. Provides low-latency, unreliable/ordered data channels for real-time VDF proof and consensus message exchange.
+- **MessageCodec**: Protobuf encode/decode with Ed25519 signatures. Ensures all P2P messages are compactly serialized and cryptographically authenticated before transmission.
+- **SignalingClient**: WebSocket client for Cloudflare Durable Object relay. Handles peer discovery and SDP/ICE candidate exchange through a centralized signaling server.
+- **PeerConnection**: RTCPeerConnection wrapper with ping/pong RTT measurement. Manages ICE negotiation, connection state transitions, and keepalive probing.
+
 #### Communication Layer
 
 - **postMessage API**: Thread-safe communication
@@ -150,16 +173,19 @@ VTP Node is designed as a browser-based implementation of the Verifiable Time Pr
 
 ### Technology Stack
 
-| Layer            | Technology               | Purpose                    |
-| ---------------- | ------------------------ | -------------------------- |
-| **Frontend**     | Svelte 4                 | Reactive UI framework      |
-| **Build Tool**   | Vite 5                   | Fast development and build |
-| **Language**     | TypeScript 5             | Type-safe JavaScript       |
-| **Core Library** | Rust + wasm-pack         | High-performance Wasm      |
-| **Crypto**       | Wesolowski VDF + ED25519 | VDF and VRF operations     |
-| **Styling**      | CSS                      | Component styling          |
-| **Storage**      | IndexedDB                | Checkpoint persistence     |
-| **PWA**          | Workbox                  | Service worker caching     |
+| Layer            | Technology                 | Purpose                            |
+| ---------------- | -------------------------- | ---------------------------------- |
+| **Frontend**     | Svelte 4                   | Reactive UI framework              |
+| **Build Tool**   | Vite 5                     | Fast development and build         |
+| **Language**     | TypeScript 5               | Type-safe JavaScript               |
+| **Core Library** | Rust + wasm-pack           | High-performance Wasm              |
+| **Crypto**       | Wesolowski VDF + ED25519   | VDF and VRF operations             |
+| **Network**      | WebRTC + Protocol Buffers  | P2P transport and message encoding |
+| **Signaling**    | Cloudflare Durable Objects | WebSocket signaling relay          |
+| **Consensus**    | VRF + BFT                  | Leader election and validation     |
+| **Styling**      | CSS                        | Component styling                  |
+| **Storage**      | IndexedDB                  | Checkpoint persistence             |
+| **PWA**          | Workbox                    | Service worker caching             |
 
 ---
 
@@ -179,9 +205,15 @@ vtp-core/
 │   ├── vdf.rs          # VDF implementation
 │   ├── vrf.rs          # VRF implementation
 │   ├── session.rs      # Session management
+│   ├── consensus.rs    # Consensus engine (VRF leader + BFT voting)
 │   ├── error.rs        # Error types
 │   └── utils.rs        # Utility functions
 └── tests/
+    ├── vdf_test.rs
+    ├── vrf_test.rs
+    ├── session_test.rs
+    ├── consensus_test.rs
+    └── error_test.rs
 ```
 
 #### Key Design Decisions
@@ -394,6 +426,156 @@ const strategies = {
 
 ---
 
+### Network Layer
+
+The Network Layer provides peer-to-peer connectivity for VDF proof distribution and consensus message exchange. It sits between the Presentation Layer and the Communication Layer, coordinating all P2P networking independently of the computation thread.
+
+#### Module Structure
+
+```
+src/lib/network/
+├── types.ts              # Type definitions for all network messages and peer state
+├── signaling-client.ts   # WebSocket client for Cloudflare Durable Object relay
+├── peer-connection.ts    # RTCPeerConnection wrapper with ICE/STUN and RTT probing
+├── peer-manager.ts       # Multi-peer orchestrator (signaling + WebRTC + codec)
+└── message-codec.ts      # Protobuf encode/decode with Ed25519 signature envelope
+```
+
+#### Signaling Architecture
+
+The signaling server uses a Cloudflare Durable Object as a transparent relay. It does not interpret message payloads -- it only routes SDP offers, SDP answers, and ICE candidates between peers that share a room.
+
+```
+Peer A                         CF Durable Object                    Peer B
+  │                               (WebSocket)                          │
+  │── ws: join(room_id) ──────►│                                      │
+  │                              │◄─────── ws: join(room_id) ─────────│
+  │                              │                                     │
+  │── ws: sdp_offer ──────────►│                                      │
+  │                              │──────── ws: sdp_offer ────────────►│
+  │                              │                                     │
+  │                              │◄──────── ws: sdp_answer ───────────│
+  │◄──────── ws: sdp_answer ───│                                     │
+  │                              │                                     │
+  │── ws: ice_candidate ──────►│                                      │
+  │                              │─────── ws: ice_candidate ─────────►│
+  │                              │                                     │
+  │              [Direct WebRTC DataChannel established]               │
+```
+
+#### WebRTC Connection Lifecycle
+
+1. **Signaling**: Both peers connect to the Durable Object WebSocket and join a room.
+2. **Offer/Answer**: The initiating peer creates an SDP offer; the responder replies with an SDP answer.
+3. **ICE Gathering**: Both peers exchange ICE candidates. IPv6 candidates are prioritized for direct connectivity.
+4. **Connected**: Once the DataChannel opens, signaling is no longer needed for that pair.
+5. **Keepalive**: Ping/pong messages measure RTT and detect stale connections.
+6. **Reconnect**: On disconnect, the PeerManager re-enters the signaling flow automatically.
+
+#### Message Format
+
+All P2P messages are wrapped in a signed envelope:
+
+```protobuf
+// SignedMessage envelope
+message SignedMessage {
+  bytes   sender_pubkey = 1;   // Ed25519 public key (32 bytes)
+  bytes   signature     = 2;   // Ed25519 signature over body (64 bytes)
+  bytes   body          = 3;   // Serialized MessageBody
+  uint64  timestamp     = 4;   // Unix ms
+}
+
+// MessageBody is a oneof for type safety
+message MessageBody {
+  oneof payload {
+    VdfProofBroadcast   vdf_proof    = 1;
+    ConsensusMsg        consensus    = 2;
+    PeerPing            ping         = 3;
+    PeerPong            pong         = 4;
+  }
+}
+```
+
+The MessageCodec on the receiving side verifies the Ed25519 signature before deserializing the inner `MessageBody`, ensuring that only authenticated messages reach the application.
+
+---
+
+### Consensus Layer
+
+The Consensus Layer implements a VRF-driven leader election combined with BFT (Byzantine Fault Tolerant) voting to agree on valid VDF proofs. It runs primarily in the Rust/Wasm core (`consensus.rs`) with a TypeScript coordinator in the browser.
+
+#### Module Structure
+
+```
+src/lib/consensus/
+├── types.ts              # Consensus round state, vote types, block structures
+├── consensus-engine.ts   # Round lifecycle coordinator (calls into Wasm consensus)
+├── vote-pool.ts          # Collects and tallies prevotes and precommits
+└── block-chain.ts        # Maintains the in-memory block header chain
+```
+
+#### Consensus Protocol
+
+The consensus protocol is a two-phase voting scheme driven by VRF-based leader election:
+
+1. **Leader Election**: At the start of each round, every validator computes a VRF output using the round number as input. The validator with the lowest VRF hash becomes the round leader.
+2. **Proposal**: The leader broadcasts a `Proposal` containing the VDF proof result and a new block header.
+3. **Prevote**: Each validator verifies the VDF proof and the VRF leader claim, then broadcasts a `Prevote` for the proposal.
+4. **Precommit**: Upon receiving 2f+1 prevotes, validators broadcast a `Precommit`.
+5. **Commit**: Upon receiving 2f+1 precommits, validators commit the block to their local chain.
+
+#### Round Lifecycle
+
+```
+NEW_ROUND
+    │
+    ▼
+  PROPOSE          Leader computes VRF, broadcasts Proposal + VDF proof
+    │
+    ▼
+  PREVOTE          All validators verify and vote
+    │               (need 2f+1 to proceed)
+    ▼
+  PRECOMMIT        Validators confirm agreement
+    │               (need 2f+1 to proceed)
+    ▼
+  COMMIT           Block appended to local chain
+    │
+    ▼
+  NEW_ROUND        (next round begins)
+```
+
+#### Fault Tolerance
+
+The protocol tolerates `f` Byzantine faults out of `3f + 1` total validators:
+
+- **Quorum**: 2f + 1 votes are required for both prevote and precommit phases.
+- **Safety**: No two conflicting blocks can be committed in the same round as long as fewer than f validators are Byzantine.
+- **Liveness**: The round proceeds as soon as a quorum is reached; non-responsive validators are skipped.
+
+#### Block Structure
+
+Each committed block contains a `BlockHeader` that chains to the previous block:
+
+```rust
+pub struct BlockHeader {
+    pub round: u64,              // Consensus round number
+    pub prev_hash: [u8; 32],    // SHA-256 of previous block header
+    pub vdf_output: [u8; 32],   // VDF computation result
+    pub vrf_proof: Vec<u8>,     // VRF proof from the round leader
+    pub proposer: [u8; 32],     // Ed25519 public key of the proposer
+    pub timestamp: u64,         // Unix timestamp in ms
+    pub hash: [u8; 32],         // SHA-256 of this header (self-referential)
+}
+```
+
+#### How VDF/VRF Feed Into Consensus
+
+- **VDF**: The time-lock puzzle output serves as the core data that validators must agree on. The consensus protocol ensures that all honest nodes converge on the same VDF result within a round.
+- **VRF**: Used for leader election to prevent targeted attacks. Because the VRF output is unpredictable until revealed, an attacker cannot know in advance which validator will be the leader.
+
+---
+
 ## Data Flow
 
 ### Initialization Flow
@@ -503,6 +685,52 @@ try {
     recoverable: true
   });
 }
+```
+
+### Consensus Round Flow
+
+```
+All Validators                 Round Leader                  VDF Engine
+     │                              │                             │
+     │   NEW_ROUND(r)               │                             │
+     │──────────────────────────────┤                             │
+     │                              │                             │
+     │   VRF::evaluate(sk, r)       │                             │
+     │──────────────────────────────►│                             │
+     │   lowest hash = leader       │                             │
+     │◄─────────────────────────────│                             │
+     │                              │                             │
+     │                              │   Get VDF proof             │
+     │                              │────────────────────────────►│
+     │                              │   VDF output + proof        │
+     │                              │◄────────────────────────────│
+     │                              │                             │
+     │   Broadcast: Proposal        │                             │
+     │◄─────────────────────────────│                             │
+     │                              │                             │
+     │   Verify VDF + VRF           │                             │
+     │──────────────────────────────┤                             │
+     │                              │                             │
+     │   Broadcast: Prevote(vote)   │                             │
+     │──────────────────────────────►│                             │
+     │                              │                             │
+     │   Collect 2f+1 prevotes      │                             │
+     │──────────────────────────────┤                             │
+     │                              │                             │
+     │   Broadcast: Precommit(vote) │                             │
+     │──────────────────────────────►│                             │
+     │                              │                             │
+     │   Collect 2f+1 precommits    │                             │
+     │──────────────────────────────┤                             │
+     │                              │                             │
+     │   COMMIT block               │                             │
+     │──────────────────────────────┤                             │
+     │                              │                             │
+     │   Append BlockHeader to chain│                             │
+     │──────────────────────────────┤                             │
+     │                              │                             │
+     │   NEW_ROUND(r + 1)           │                             │
+     │──────────────────────────────┤                             │
 ```
 
 ---
@@ -743,6 +971,13 @@ const features = {
 
 ## Future Considerations
 
+### Recently Implemented
+
+The following features, previously listed as future work, have been implemented:
+
+- **Networking**: Peer-to-peer communication via WebRTC DataChannels with Cloudflare Durable Object signaling -- see [Network Layer](#network-layer).
+- **Consensus**: VRF-driven leader election and BFT voting protocol -- see [Consensus Layer](#consensus-layer).
+
 ### Potential Improvements
 
 1. **SIMD Support**: Enable WebAssembly SIMD128 for faster big-integer operations
@@ -753,8 +988,8 @@ const features = {
 ### Scalability
 
 1. **Multi-Node**: Support multiple VDF challenges
-2. **Networking**: Add peer-to-peer communication
-3. **Consensus**: Implement consensus protocol
+2. **Cross-shard Consensus**: Coordinate consensus across independent VDF challenge groups
+3. **Dynamic Validator Sets**: Allow validators to join and leave the consensus group at runtime without restarting rounds
 4. **Storage**: Distributed storage system
 
 ### Research Directions
@@ -777,6 +1012,6 @@ For architecture questions or discussions:
 
 <div align="center">
 
-**[⬆ Back to Top](#vtp-node-architecture-guide)**
+**[Back to Top](#vtp-node-architecture-guide)**
 
 </div>

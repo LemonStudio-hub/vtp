@@ -56,16 +56,56 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    font-family:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
-      'Helvetica Neue', sans-serif;
-    background-color: #0a0a1a;
-    color: #e6e6e6;
+    font-family: var(--font-sans);
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
     overflow-x: hidden;
   }
 
   :global(*) {
     box-sizing: border-box;
+  }
+
+  /* ── Design System: CSS Custom Properties ── */
+  :global(:root) {
+    /* Colors */
+    --color-bg: #0a0a1a;
+    --color-surface: rgba(22, 33, 62, 0.6);
+    --color-surface-hover: rgba(255, 255, 255, 0.04);
+    --color-border: rgba(255, 255, 255, 0.06);
+    --color-border-accent: rgba(0, 255, 136, 0.12);
+    --color-text-primary: #e6e6e6;
+    --color-text-secondary: #888888;
+    --color-text-muted: #555555;
+    --color-accent-green: #00ff88;
+    --color-accent-green-dim: #00cc6a;
+    --color-accent-indigo: #6366f1;
+    --color-accent-amber: #f59e0b;
+    --color-accent-red: #ef4444;
+    --color-accent-green-glow: rgba(0, 255, 136, 0.3);
+
+    /* Glass morphism */
+    --glass-bg: rgba(22, 33, 62, 0.6);
+    --glass-blur: 20px;
+    --glass-border: 1px solid rgba(0, 255, 136, 0.1);
+
+    /* Border radii */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-full: 9999px;
+
+    /* Typography */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+    /* Spacing */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
   }
 
   :global(::-webkit-scrollbar) {
@@ -77,7 +117,7 @@
   }
 
   :global(::-webkit-scrollbar-thumb) {
-    background: rgba(0, 255, 136, 0.3);
+    background: var(--color-accent-green-glow);
     border-radius: 3px;
   }
 
@@ -112,9 +152,9 @@
     width: 200%;
     height: 200%;
     background:
-      radial-gradient(circle at 30% 20%, rgba(0, 255, 136, 0.08) 0%, transparent 40%),
-      radial-gradient(circle at 70% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 40%),
-      radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.04) 0%, transparent 60%);
+      radial-gradient(circle at 30% 20%, rgba(0, 255, 136, 0.05) 0%, transparent 40%),
+      radial-gradient(circle at 70% 80%, rgba(99, 102, 241, 0.04) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.03) 0%, transparent 60%);
     animation: bgPulse 15s ease-in-out infinite alternate;
     pointer-events: none;
     z-index: 0;

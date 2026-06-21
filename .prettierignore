@@ -1,0 +1,23 @@
+# Build outputs
+build/
+dist/
+.svelte-kit/
+static/wasm/
+target/
+pkg/
+
+# Dependencies
+node_modules/
+
+# Generated protobuf artifacts
+proto/vtp_messages.js
+proto/vtp_messages.d.ts
+proto/vtp_messages.json
+proto/node_modules/
+
+# Rust
+src/lib/vtp-core/pkg/
+src/lib/vtp-core/target/
+
+# Generated
+coverage/

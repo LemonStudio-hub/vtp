@@ -12,6 +12,7 @@
 
 #![allow(clippy::manual_is_multiple_of)]
 
+pub mod consensus;
 pub mod error;
 pub mod session;
 pub mod utils;

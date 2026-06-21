@@ -8,51 +8,54 @@
   - Informational events
 
   Features:
+  - Type filtering (All / Info / Checkpoint / Winner / Error)
+  - Relative time display ("2m ago") alongside timestamps
   - Auto-scrolls to the latest event
-  - Displays events in reverse chronological order
-  - Uses distinct icons for different event types
-  - Displays a maximum of 50 events
   - Animated entry effects
-
-  Data source:
-  Subscribes to the events Svelte Store to obtain the event list
-
-  Usage example:
-  ```svelte
-  <EventLog />
-  ```
+  - Maximum of 50 events displayed
 -->
 
 <script lang="ts">
   import { events } from '$stores/worker';
+  import { formatRelativeTime } from '$utils';
 
-  /**
-   * Format a timestamp
-   *
-   * Converts a Unix timestamp to a localised time string.
-   *
-   * @param timestamp - Unix timestamp in milliseconds
-   * @returns Formatted time string
-   *
-   * @example
-   * formatTimestamp(1234567890000) // "12:34:50"
-   */
+  /** Active type filters (all selected by default) */
+  let activeFilters: Set<string> = new Set(['info', 'checkpoint', 'winner', 'error']);
+
+  /** Filter toggle options */
+  const filterOptions = [
+    { type: 'info', label: 'Info', color: '#6366f1' },
+    { type: 'checkpoint', label: 'Checkpoint', color: '#3b82f6' },
+    { type: 'winner', label: 'Winner', color: '#10b981' },
+    { type: 'error', label: 'Error', color: '#ef4444' }
+  ];
+
+  /** Whether all filters are currently active */
+  $: allActive = activeFilters.size === 4;
+
+  /** Filtered event list */
+  $: filteredEvents = allActive ? $events : $events.filter((e) => activeFilters.has(e.type));
+
+  function toggleFilter(type: string) {
+    if (activeFilters.has(type)) {
+      if (activeFilters.size > 1) {
+        activeFilters.delete(type);
+        activeFilters = activeFilters; // trigger reactivity
+      }
+    } else {
+      activeFilters.add(type);
+      activeFilters = activeFilters;
+    }
+  }
+
+  function showAll() {
+    activeFilters = new Set(['info', 'checkpoint', 'winner', 'error']);
+  }
+
   function formatTimestamp(timestamp: number): string {
     return new Date(timestamp).toLocaleTimeString();
   }
 
-  /**
-   * Get the event icon
-   *
-   * Returns the corresponding emoji icon based on the event type.
-   *
-   * @param type - Event type
-   * @returns Corresponding emoji icon
-   *
-   * @example
-   * getEventIcon('winner') // "🎉"
-   * getEventIcon('error') // "❌"
-   */
   function getEventIcon(type: string): string {
     switch (type) {
       case 'checkpoint':
@@ -68,94 +71,81 @@
     }
   }
 
-  /**
-   * Get event type class for styling
-   *
-   * Returns CSS class based on event type for color coding
-   *
-   * @param type - Event type
-   * @returns CSS class name
-   */
   function getEventTypeClass(type: string): string {
-    switch (type) {
-      case 'checkpoint':
-        return 'event-checkpoint';
-      case 'winner':
-        return 'event-winner';
-      case 'error':
-        return 'event-error';
-      case 'info':
-        return 'event-info';
-      default:
-        return '';
-    }
+    return `event-${type}`;
   }
 </script>
 
-<!-- Event log container -->
 <div class="event-log">
-  <!-- Heading -->
+  <!-- Header with count -->
   <div class="event-header">
-    <h3>Recent Events</h3>
+    <h3 class="event-title">Recent Events</h3>
     <span class="event-count">{$events.length}</span>
+  </div>
+
+  <!-- Type filters -->
+  <div class="filter-bar">
+    <button class="filter-pill" class:active={allActive} on:click={showAll}> All </button>
+    {#each filterOptions as opt}
+      <button
+        class="filter-pill"
+        class:active={activeFilters.has(opt.type)}
+        style="--pill-color: {opt.color}"
+        on:click={() => toggleFilter(opt.type)}
+      >
+        {opt.label}
+      </button>
+    {/each}
   </div>
 
   <!-- Event list -->
   <div class="events-list">
-    {#each $events as event, index}
-      <!-- Individual event item -->
+    {#each filteredEvents as event, index}
       <div
         class="event-item {getEventTypeClass(event.type)}"
-        style="animation-delay: {Math.min(index * 50, 300)}ms"
+        style="animation-delay: {Math.min(index * 40, 200)}ms"
       >
-        <!-- Event icon -->
         <span class="event-icon">{getEventIcon(event.type)}</span>
-
-        <!-- Event content -->
         <div class="event-content">
-          <!-- Event message -->
           <span class="event-message">{event.message}</span>
-
-          <!-- Event timestamp -->
-          <span class="event-time">{formatTimestamp(event.timestamp)}</span>
+          <div class="event-meta">
+            <span class="event-time">{formatTimestamp(event.timestamp)}</span>
+            <span class="event-relative">{formatRelativeTime(event.timestamp)}</span>
+          </div>
         </div>
       </div>
     {:else}
-      <!-- Empty state placeholder -->
       <div class="empty-state">
         <div class="empty-icon">📭</div>
-        <span>No events recorded</span>
+        <span class="empty-title">No events recorded</span>
+        <span class="empty-hint">Events will appear here when computation starts</span>
       </div>
     {/each}
   </div>
 </div>
 
 <style>
-  /* Event log container */
   .event-log {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-md);
     height: 100%;
   }
 
-  /* Event header */
   .event-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
 
-  /* Heading styles */
-  h3 {
+  .event-title {
     margin: 0;
-    font-size: 0.875rem;
-    color: #666;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
 
-  /* Event count badge */
   .event-count {
     display: inline-flex;
     align-items: center;
@@ -163,37 +153,67 @@
     min-width: 24px;
     height: 24px;
     padding: 0 6px;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     background: rgba(0, 255, 136, 0.1);
-    color: #00ff88;
-    border-radius: 12px;
+    color: var(--color-accent-green);
+    border-radius: var(--radius-full);
+    font-family: var(--font-mono);
   }
 
-  /* Event list container */
+  /* ── Filter bar ── */
+  .filter-bar {
+    display: flex;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-pill {
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    font-family: var(--font-sans);
+    color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .filter-pill:hover {
+    background: var(--color-surface-hover);
+    color: var(--color-text-secondary);
+  }
+
+  .filter-pill.active {
+    color: var(--pill-color, var(--color-accent-green));
+    border-color: var(--pill-color, var(--color-accent-green));
+    background: color-mix(in srgb, var(--pill-color, var(--color-accent-green)) 10%, transparent);
+  }
+
+  /* ── Event list ── */
   .events-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.375rem;
     flex: 1;
-    max-height: 300px;
     overflow-y: auto;
-    padding-right: 0.5rem;
+    padding-right: 0.375rem;
   }
 
-  /* Individual event item */
   .event-item {
     display: flex;
     align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.875rem;
+    gap: 0.625rem;
+    padding: 0.75rem;
     background: rgba(255, 255, 255, 0.02);
-    border-radius: 10px;
-    font-size: 0.875rem;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    border: 1px solid var(--color-border);
     animation: slideInEvent 0.3s ease forwards;
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateX(-8px);
     transition: all 0.2s ease;
   }
 
@@ -205,36 +225,32 @@
   }
 
   .event-item:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--color-surface-hover);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
   /* Event type borders */
   .event-checkpoint {
     border-left: 3px solid #3b82f6;
   }
-
   .event-winner {
     border-left: 3px solid #10b981;
-    background: rgba(16, 185, 129, 0.05);
+    background: rgba(16, 185, 129, 0.04);
   }
-
   .event-error {
     border-left: 3px solid #ef4444;
-    background: rgba(239, 68, 68, 0.05);
+    background: rgba(239, 68, 68, 0.04);
   }
-
   .event-info {
     border-left: 3px solid #6366f1;
   }
 
-  /* Event icon styles */
   .event-icon {
-    font-size: 1.25rem;
+    font-size: 1rem;
     flex-shrink: 0;
+    line-height: 1.3;
   }
 
-  /* Event content */
   .event-content {
     flex: 1;
     display: flex;
@@ -243,38 +259,59 @@
     min-width: 0;
   }
 
-  /* Event message styles */
   .event-message {
-    color: #e6e6e6;
+    color: var(--color-text-primary);
     line-height: 1.4;
     word-break: break-word;
   }
 
-  /* Event timestamp styles */
-  .event-time {
-    font-size: 0.75rem;
-    color: #555;
-    font-family: 'Courier New', monospace;
+  .event-meta {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
   }
 
-  /* Empty state placeholder styles */
+  .event-time {
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .event-relative {
+    font-size: 0.625rem;
+    color: rgba(255, 255, 255, 0.15);
+    font-family: var(--font-mono);
+  }
+
+  /* ── Empty state ── */
   .empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     text-align: center;
-    color: #555;
-    padding: 3rem 2rem;
+    color: var(--color-text-muted);
+    padding: 2.5rem 1.5rem;
   }
 
   .empty-icon {
-    font-size: 2rem;
-    opacity: 0.5;
+    font-size: 1.75rem;
+    opacity: 0.4;
   }
 
-  /* Custom scrollbar */
+  .empty-title {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+  }
+
+  .empty-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    max-width: 200px;
+  }
+
+  /* ── Scrollbar ── */
   .events-list::-webkit-scrollbar {
     width: 4px;
   }
@@ -284,11 +321,11 @@
   }
 
   .events-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 2px;
   }
 
   .events-list::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.15);
   }
 </style>

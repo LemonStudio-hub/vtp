@@ -36,10 +36,33 @@
  */
 
 /**
- * Worker Message Interface
+ * Worker Command Discriminated Union
  *
- * Control messages sent from the main thread to the Worker.
- * Supported command types: start / pause / resume / stop
+ * Type-safe control messages sent from the main thread to the Worker.
+ * Each command variant enforces its own required fields at compile time.
+ */
+export type WorkerCommand =
+  | {
+      type: 'start';
+      /** VDF computation seed, minimum 32 bytes */
+      seed: Uint8Array;
+      /** Total number of VDF steps to compute */
+      total: number;
+      /** VRF draw interval */
+      k: number;
+      /** VRF threshold, 32 bytes */
+      tau: Uint8Array;
+      /** Checkpoint interval */
+      checkpointInterval: number;
+    }
+  | { type: 'pause' }
+  | { type: 'resume' }
+  | { type: 'stop' }
+  | { type: 'setHeartbeatMode'; visible?: boolean };
+
+/**
+ * @deprecated Use {@link WorkerCommand} instead.
+ * Kept for backward compatibility with existing code that uses the old interface shape.
  */
 export interface WorkerMessage {
   /** Command type */

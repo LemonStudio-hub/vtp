@@ -87,11 +87,13 @@ npm run dev
 
 #### Optional Software
 
-| Software            | Purpose                 | Installation                    |
-| ------------------- | ----------------------- | ------------------------------- |
-| **cargo-watch**     | Auto-rebuild on changes | `cargo install cargo-watch`     |
-| **cargo-tarpaulin** | Code coverage           | `cargo install cargo-tarpaulin` |
-| **pnpm**            | Faster package manager  | `npm install -g pnpm`           |
+| Software            | Purpose                 | Installation                          |
+| ------------------- | ----------------------- | ------------------------------------- |
+| **cargo-watch**     | Auto-rebuild on changes | `cargo install cargo-watch`           |
+| **cargo-tarpaulin** | Code coverage           | `cargo install cargo-tarpaulin`       |
+| **pnpm**            | Faster package manager  | `npm install -g pnpm`                 |
+| **Wrangler**        | Cloudflare DO local dev | `npm install -g wrangler`             |
+| **protoc**          | Protobuf codegen        | [protobuf.dev](https://protobuf.dev/) |
 
 ### Installation
 
@@ -290,6 +292,10 @@ feat(vdf): add SIMD optimization for SHA256
 fix(worker): handle memory limit exceeded
 docs(api): update VRF module documentation
 test(session): add unit tests for checkpoint recovery
+feat(consensus): add VRF-driven leader election
+fix(network): handle WebRTC reconnection
+test(consensus): add BFT voting integration tests
+feat(signaling): add Cloudflare Durable Object relay
 ```
 
 #### Pull Request Process
@@ -328,6 +334,19 @@ cargo test test_vdf_step
 ```bash
 cd src/lib/vtp-core
 cargo test -- --nocapture
+```
+
+#### Run Consensus Tests
+
+```bash
+cd src/lib/vtp-core
+cargo test --target x86_64-unknown-linux-gnu --test consensus_test
+```
+
+#### Run Network Tests
+
+```bash
+npm test -- --grep "consensus\|codec\|peer-connection\|signaling"
 ```
 
 #### Test Coverage
@@ -770,6 +789,68 @@ fn test_new_function() {
 ```bash
 npm run wasm:build
 ```
+
+### Adding a New Consensus Message Type
+
+1. **Add message to protobuf schema**
+
+```protobuf
+// proto/vtp_messages.proto
+message MyNewMessage {
+  uint64 round = 1;
+  bytes data = 2;
+}
+
+// Add to MessageBody oneof
+message MessageBody {
+  oneof body {
+    // ... existing messages ...
+    MyNewMessage my_new_message = 10;
+  }
+}
+```
+
+2. **Regenerate protobuf code**
+
+```bash
+cd proto && npm run generate
+```
+
+3. **Add TypeScript type**
+
+```typescript
+// src/lib/network/types.ts
+export interface MyNewMessagePayload {
+  type: 'my-new-message';
+  round: number;
+  data: Uint8Array;
+}
+```
+
+4. **Add encode/decode to MessageCodec**
+
+```typescript
+// src/lib/network/message-codec.ts
+// Add to buildMessageBody() and mapPayload() switch statements
+```
+
+5. **Add helper function**
+
+```typescript
+// src/lib/network/message-codec.ts
+export function createMyNewMessage(round: number, data: Uint8Array): MessagePayload {
+  return { type: 'my-new-message', round, data };
+}
+```
+
+6. **Rebuild WASM and test**
+
+```bash
+npm run wasm:build
+npm test
+```
+
+---
 
 ### Adding a New Svelte Component
 

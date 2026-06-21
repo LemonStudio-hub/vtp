@@ -51,6 +51,11 @@ temp/
 # TypeScript
 *.tsbuildinfo
 
+# Generated protobuf artifacts (regenerate with: cd proto && node generate.js)
+proto/vtp_messages.js
+proto/vtp_messages.json
+proto/package-lock.json
+
 # Misc
 .cache/
 .parcel-cache/

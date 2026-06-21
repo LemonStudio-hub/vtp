@@ -26,6 +26,7 @@
  * The actual WASM module is loaded at runtime via dynamic import.
  */
 import type { Session as SessionType } from '../vtp-core/types/vtp_core';
+import { sleep } from '../utils/sleep';
 
 /**
  * Runtime reference to the Session class, obtained after WASM initialization.
@@ -47,8 +48,11 @@ async function loadWasm(): Promise<void> {
   const wasmModule = await import(/* @vite-ignore */ blobUrl);
   URL.revokeObjectURL(blobUrl);
 
-  // Initialize the WASM binary
-  await wasmModule.default();
+  // Initialize the WASM binary.
+  // Pass the explicit URL so the wasm-pack init function can resolve the
+  // .wasm file correctly (import.meta.url is a blob: URL here, which
+  // would break relative resolution).
+  await wasmModule.default('/wasm/vtp_core_bg.wasm');
 
   // Extract the Session class
   Session = wasmModule.Session;
@@ -181,6 +185,9 @@ let lastReportTime = 0;
 /** Current step count */
 let stepCount = 0;
 
+/** Step count at the last speed report (for computing deltas) */
+let previousStepCount = 0;
+
 /** Current computation speed */
 let speed = 0;
 
@@ -270,17 +277,19 @@ async function handleStart(params: Omit<WorkerMessage, 'type'>) {
     }
 
     // Create new session
-    session = new Session(seed, total, k, tau, checkpointInterval);
+    session = new Session(seed, BigInt(total), BigInt(k), tau, BigInt(checkpointInterval));
+
     isRunning = true;
     isPaused = false;
     startTime = Date.now();
     lastReportTime = startTime;
     stepCount = 0;
+    previousStepCount = 0;
 
     // Notify main thread that session has started
     self.postMessage({
       type: 'started',
-      publicKey: session.public_key()
+      publicKey: session.public_key
     });
 
     // Start heartbeat and main loop
@@ -368,16 +377,17 @@ async function runMainLoop() {
       if (!session) break;
 
       // Execute batch VDF computation
-      const result = session.run_batch(BATCH_SIZE) as BatchResultType;
-      stepCount = session.state().step;
+      const result = session.run_batch(BigInt(BATCH_SIZE)) as BatchResultType;
+      stepCount = Number(session.state.step);
 
       // Calculate and report progress
       const now = Date.now();
       const elapsed = (now - lastReportTime) / 1000;
 
       if (elapsed >= REPORT_INTERVAL_MS / 1000) {
-        // Calculate current speed (steps/sec)
-        speed = (stepCount - (stepCount - BATCH_SIZE)) / elapsed;
+        // Calculate current speed (steps/sec) from actual step delta
+        speed = (stepCount - previousStepCount) / elapsed;
+        previousStepCount = stepCount;
 
         const progressMsg: ProgressMessage = {
           type: 'progress',
@@ -540,17 +550,4 @@ function handleSetHeartbeatMode(params: { visible?: boolean }) {
       startHeartbeat();
     }
   }
-}
-
-/**
- * Async sleep function
- *
- * Returns a Promise that resolves after specified milliseconds.
- * Used for time-slicing control and error retry delays.
- *
- * @param ms - Sleep duration in milliseconds
- * @returns Promise<void>
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

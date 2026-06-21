@@ -1,0 +1,23 @@
+name = "vtp-signaling"
+main = "src/index.ts"
+compatibility_date = "2024-01-17"
+
+# ─── Durable Objects ────────────────────────────────────────────────
+# Each "room" is backed by one Durable Object instance identified by
+# the room ID.  Cloudflare routes all WebSocket connections for a room
+# to the same DO instance, ensuring consistent peer state.
+
+[[durable_objects.bindings]]
+name = "SIGNALING_ROOM"
+class_name = "SignalingRoom"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SignalingRoom"]
+
+# ─── Compatibility flags ────────────────────────────────────────────
+compatibility_flags = ["nodejs_compat"]
+
+# ─── Observability ──────────────────────────────────────────────────
+[observability]
+enabled = true

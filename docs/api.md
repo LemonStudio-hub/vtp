@@ -4,7 +4,7 @@
 
 **Complete API documentation for the VTP Node project**
 
-[Overview](#overview) • [Rust Core API](#rust-core-api) • [Web Worker API](#web-worker-api) • [Svelte Stores](#svelte-stores) • [Utility Functions](#utility-functions)
+[Overview](#overview) • [Rust Core API](#rust-core-api) • [Consensus API](#consensus-api) • [Network API](#network-api) • [Web Worker API](#web-worker-api) • [Svelte Stores](#svelte-stores) • [Utility Functions](#utility-functions)
 
 </div>
 
@@ -19,6 +19,17 @@
   - [Session Module](#session-module)
   - [Error Module](#error-module)
   - [Utils Module](#utils-module)
+- [Consensus API](#consensus-api)
+  - [Rust Consensus Module](#rust-consensus-module)
+  - [TypeScript Consensus Engine](#typescript-consensus-engine)
+  - [Vote Pool](#vote-pool)
+  - [Block Chain](#block-chain)
+- [Network API](#network-api)
+  - [PeerManager](#peermanager)
+  - [PeerConnection](#peerconnection)
+  - [SignalingClient](#signalingclient)
+  - [Message Codec](#message-codec)
+  - [Consensus Message Helpers](#consensus-message-helpers)
 - [Web Worker API](#web-worker-api)
   - [Messages (Main Thread → Worker)](#messages-main-thread--worker)
   - [Messages (Worker → Main Thread)](#messages-worker--main-thread)
@@ -45,6 +56,8 @@ The VTP Node project exposes APIs at multiple levels:
 2. **Web Worker API**: Message-based interface for background computation
 3. **Svelte Stores**: Reactive state management for the UI
 4. **Utility Functions**: Helper functions for common operations
+5. **Consensus API**: VRF-driven leader election + BFT validation
+6. **Network API**: WebRTC P2P networking with signaling
 
 ### API Design Principles
 
@@ -850,6 +863,1235 @@ pub fn generate_random_bytes(length: u32) -> Vec<u8>
 
 ---
 
+## Consensus API
+
+The Consensus API implements VRF-driven leader election with BFT-style voting (propose, prevote, precommit, commit). It is available as both a Rust/WASM module and a TypeScript wrapper.
+
+### Rust Consensus Module
+
+The `consensus` module in `vtp-core` provides the low-level consensus primitives compiled to WebAssembly.
+
+#### `ConsensusPhase`
+
+Consensus phase enum.
+
+```rust
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConsensusPhase {
+    Propose,
+    Prevote,
+    Precommit,
+    Commit,
+}
+```
+
+**Variants:**
+| Variant | Description |
+|---------|-------------|
+| `Propose` | Leader proposes a block |
+| `Prevote` | Validators prevote on proposal |
+| `Precommit` | Validators precommit after prevote quorum |
+| `Commit` | Block committed after precommit quorum |
+
+---
+
+#### `VotePhase`
+
+Vote phase enum (subset of ConsensusPhase for vote messages).
+
+```rust
+#[wasm_bindgen]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VotePhase {
+    Prevote,
+    Precommit,
+}
+```
+
+---
+
+#### `BlockHeader`
+
+Block header structure.
+
+```rust
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockHeader {
+    pub round: u64,
+    pub prev_hash: Vec<u8>,
+    pub vdf_state: Vec<u8>,
+    pub vrf_proof: Vec<u8>,
+    pub proposer: Vec<u8>,
+    pub timestamp: u64,
+}
+```
+
+**Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `round` | `u64` | Consensus round number |
+| `prev_hash` | `Vec<u8>` | Hash of the previous block |
+| `vdf_state` | `Vec<u8>` | VDF state at time of proposal |
+| `vrf_proof` | `Vec<u8>` | VRF proof of leader election |
+| `proposer` | `Vec<u8>` | Proposer public key |
+| `timestamp` | `u64` | Block timestamp (Unix ms) |
+
+##### `BlockHeader::new`
+
+Create a new block header.
+
+```rust
+#[wasm_bindgen(constructor)]
+pub fn new(
+    round: u64,
+    prev_hash: Vec<u8>,
+    vdf_state: Vec<u8>,
+    vrf_proof: Vec<u8>,
+    proposer: Vec<u8>,
+    timestamp: u64,
+) -> Self
+```
+
+##### `BlockHeader::to_bytes`
+
+Serialize the header to bytes.
+
+```rust
+pub fn to_bytes(&self) -> Vec<u8>
+```
+
+##### `BlockHeader::from_bytes`
+
+Deserialize a header from bytes.
+
+```rust
+pub fn from_bytes(bytes: &[u8]) -> Result<BlockHeader, JsValue>
+```
+
+##### `BlockHeader::hash`
+
+Compute the SHA-256 hash of this block header.
+
+```rust
+pub fn hash(&self) -> Vec<u8>
+```
+
+**Returns:** 32-byte hash vector
+
+##### Getters
+
+```rust
+pub fn round(&self) -> u64
+pub fn prev_hash(&self) -> Vec<u8>
+pub fn vdf_state(&self) -> Vec<u8>
+pub fn vrf_proof(&self) -> Vec<u8>
+pub fn proposer(&self) -> Vec<u8>
+pub fn timestamp(&self) -> u64
+```
+
+---
+
+#### `ConsensusEngine`
+
+BFT consensus engine with VRF-driven leader election.
+
+```rust
+pub struct ConsensusEngine {
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
+    validators: Vec<Vec<u8>>,
+    tau: Vec<u8>,
+    round: u64,
+    phase: ConsensusPhase,
+    vote_pool: VotePool,
+    chain: BlockChain,
+}
+```
+
+##### `ConsensusEngine::new_native`
+
+Create a new consensus engine (native Rust usage).
+
+```rust
+pub fn new_native(
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
+    validators: Vec<Vec<u8>>,
+    tau: Vec<u8>,
+) -> Self
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `secret_key` | `Vec<u8>` | 32-byte secret key |
+| `public_key` | `Vec<u8>` | 32-byte public key |
+| `validators` | `Vec<Vec<u8>>` | List of validator public keys |
+| `tau` | `Vec<u8>` | 32-byte VRF threshold |
+
+---
+
+##### `ConsensusEngine::new` (WASM)
+
+Create a new consensus engine (WASM constructor).
+
+```rust
+#[wasm_bindgen(constructor)]
+pub fn new(
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
+    validator_keys: Vec<u8>,
+    tau: Vec<u8>,
+) -> Self
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `secret_key` | `Vec<u8>` | 32-byte secret key |
+| `public_key` | `Vec<u8>` | 32-byte public key |
+| `validator_keys` | `Vec<u8>` | Concatenated 32-byte validator public keys |
+| `tau` | `Vec<u8>` | 32-byte VRF threshold |
+
+---
+
+##### `ConsensusEngine::start_round`
+
+Start a new consensus round and generate VRF proof.
+
+```rust
+pub fn start_round(&mut self, round: u64) -> Vec<u8>
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `round` | `u64` | Round number to start |
+
+**Returns:** VRF proof bytes
+
+---
+
+##### `ConsensusEngine::is_leader`
+
+Check if this node is the leader for the current round.
+
+```rust
+pub fn is_leader(&self) -> bool
+```
+
+**Returns:** `true` if this node won VRF leader election
+
+---
+
+##### `ConsensusEngine::propose_native`
+
+Create a block proposal (native Rust).
+
+```rust
+pub fn propose_native(
+    &mut self,
+    vdf_state: Vec<u8>,
+    timestamp: u64,
+) -> Result<Vec<u8>, String>
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `vdf_state` | `Vec<u8>` | Current VDF state |
+| `timestamp` | `u64` | Block timestamp |
+
+**Returns:** Serialized block proposal bytes
+
+**Errors:** If this node is not the leader or the phase is not Propose
+
+---
+
+##### `ConsensusEngine::prevote_native`
+
+Cast a prevote.
+
+```rust
+pub fn prevote_native(&mut self, accept: bool) -> Result<Vec<u8>, String>
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accept` | `bool` | Whether to accept the proposal |
+
+**Returns:** Serialized prevote message bytes
+
+---
+
+##### `ConsensusEngine::precommit_native`
+
+Cast a precommit vote.
+
+```rust
+pub fn precommit_native(&mut self, block_hash: Vec<u8>) -> Result<Vec<u8>, String>
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `block_hash` | `Vec<u8>` | Hash of the block to precommit |
+
+**Returns:** Serialized precommit message bytes
+
+---
+
+##### `ConsensusEngine::receive_vote`
+
+Process an incoming vote.
+
+```rust
+pub fn receive_vote(&mut self, vote_bytes: Vec<u8>) -> i32
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `vote_bytes` | `Vec<u8>` | Serialized vote message |
+
+**Returns:**
+| Value | Meaning |
+|-------|---------|
+| `0` | Vote accepted |
+| `1` | Prevote quorum reached |
+| `2` | Precommit quorum reached |
+| `-1` | Vote rejected (invalid or duplicate) |
+
+---
+
+##### `ConsensusEngine::finalize_native`
+
+Finalize the current round and append the block to the chain.
+
+```rust
+pub fn finalize_native(&mut self) -> Result<Vec<u8>, String>
+```
+
+**Returns:** Serialized committed block bytes
+
+**Errors:** If precommit quorum has not been reached
+
+---
+
+##### `ConsensusEngine::state`
+
+Get the current consensus state.
+
+```rust
+pub fn state(&self) -> ConsensusState
+```
+
+---
+
+##### Getters
+
+```rust
+pub fn round(&self) -> u64
+pub fn chain_height(&self) -> u64
+pub fn threshold(&self) -> u32
+pub fn prevote_count(&self) -> u32
+pub fn precommit_count(&self) -> u32
+pub fn latest_block_hash(&self) -> Vec<u8>
+pub fn verify_chain(&self) -> bool
+```
+
+---
+
+#### `ConsensusState`
+
+Consensus state snapshot.
+
+```rust
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusState {
+    pub round: u64,
+    pub phase: ConsensusPhase,
+    pub is_leader: bool,
+    pub prevote_count: u32,
+    pub precommit_count: u32,
+    pub chain_height: u64,
+}
+```
+
+**Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `round` | `u64` | Current consensus round |
+| `phase` | `ConsensusPhase` | Current consensus phase |
+| `is_leader` | `bool` | Whether this node is the leader |
+| `prevote_count` | `u32` | Number of prevotes received |
+| `precommit_count` | `u32` | Number of precommits received |
+| `chain_height` | `u64` | Number of committed blocks |
+
+---
+
+#### `verify_leader_election`
+
+Verify that a VRF proof is valid for leader election.
+
+```rust
+#[wasm_bindgen]
+pub fn verify_leader_election(block_bytes: &[u8], tau: &[u8]) -> bool
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `block_bytes` | `&[u8]` | Serialized block header |
+| `tau` | `&[u8]` | 32-byte VRF threshold |
+
+**Returns:** `true` if the block's VRF proof is below the threshold
+
+---
+
+#### `compute_threshold`
+
+Compute the BFT quorum threshold for a given validator count.
+
+```rust
+#[wasm_bindgen]
+pub fn compute_threshold(num_validators: u32) -> u32
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `num_validators` | `u32` | Number of validators |
+
+**Returns:** Quorum threshold (2f + 1)
+
+---
+
+### TypeScript Consensus Engine
+
+The TypeScript `ConsensusEngine` wraps the WASM consensus module with async methods and an event-driven interface.
+
+**Source:** `src/lib/consensus/consensus-engine.ts`
+
+#### Constructor
+
+```typescript
+import { ConsensusEngine } from '$lib/consensus';
+
+const engine = new ConsensusEngine(
+  secretKey,    // Uint8Array (32 bytes)
+  publicKey,    // Uint8Array (32 bytes)
+  validators,   // Uint8Array[] — list of validator public keys
+  config?,      // ConsensusConfig (optional)
+);
+```
+
+**ConsensusConfig:**
+
+```typescript
+interface ConsensusConfig {
+  tau?: Uint8Array; // 32-byte VRF threshold
+  checkpointInterval?: number; // VDF checkpoint interval
+  roundTimeoutMs?: number; // Round timeout in milliseconds (default: 30000)
+}
+```
+
+---
+
+#### Methods
+
+##### `startRound`
+
+Start a new consensus round.
+
+```typescript
+startRound(round: number): Uint8Array
+```
+
+**Returns:** VRF proof bytes
+
+---
+
+##### `propose`
+
+Create a block proposal (leader only).
+
+```typescript
+propose(vdfState: Uint8Array, timestamp: number): Uint8Array
+```
+
+**Returns:** Serialized proposal bytes
+
+**Throws:** If not the leader or not in Propose phase
+
+---
+
+##### `receiveProposal`
+
+Process an incoming block proposal.
+
+```typescript
+receiveProposal(proposalBytes: Uint8Array): boolean
+```
+
+**Returns:** `true` if the proposal is valid
+
+---
+
+##### `prevote`
+
+Cast a prevote.
+
+```typescript
+prevote(accept: boolean): Uint8Array
+```
+
+**Returns:** Serialized prevote bytes
+
+---
+
+##### `precommit`
+
+Cast a precommit vote.
+
+```typescript
+precommit(blockHash: Uint8Array): Uint8Array
+```
+
+**Returns:** Serialized precommit bytes
+
+---
+
+##### `receiveVote`
+
+Process an incoming vote.
+
+```typescript
+receiveVote(voteBytes: Uint8Array): number
+```
+
+**Returns:** `0` = accepted, `1` = prevote quorum, `2` = precommit quorum, `-1` = rejected
+
+---
+
+##### `finalize`
+
+Finalize the current round and commit the block.
+
+```typescript
+finalize(): Uint8Array
+```
+
+**Returns:** Serialized committed block bytes
+
+---
+
+##### `getState`
+
+Get the current consensus state.
+
+```typescript
+getState(): ConsensusState
+```
+
+---
+
+##### `dispose`
+
+Clean up resources and remove all event listeners.
+
+```typescript
+dispose(): void
+```
+
+---
+
+#### Events
+
+The TypeScript ConsensusEngine extends `EventEmitter` and emits the following events:
+
+| Event             | Callback Signature                           | Description            |
+| ----------------- | -------------------------------------------- | ---------------------- |
+| `onPhaseChange`   | `(phase: ConsensusPhase) => void`            | Phase transition       |
+| `onLeaderElected` | `(leader: Uint8Array) => void`               | Leader elected via VRF |
+| `onProposal`      | `(proposal: Uint8Array) => void`             | Proposal received      |
+| `onCommit`        | `(round: number, block: Uint8Array) => void` | Block committed        |
+| `onRoundTimeout`  | `(round: number) => void`                    | Round timed out        |
+| `onStateChange`   | `(state: ConsensusState) => void`            | State updated          |
+
+**Example:**
+
+```typescript
+engine.on('onCommit', (round, block) => {
+  console.log(`Block committed at round ${round}`);
+});
+
+engine.on('onPhaseChange', (phase) => {
+  console.log('Phase:', phase);
+});
+```
+
+---
+
+### Vote Pool
+
+The `VotePool` tracks prevotes and precommits for a consensus round.
+
+**Source:** `src/lib/consensus/vote-pool.ts`
+
+#### Constructor
+
+```typescript
+import { VotePool } from '$lib/consensus';
+
+const pool = new VotePool(validatorCount: number);
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `validatorCount` | `number` | Total number of validators |
+
+---
+
+#### Static Methods
+
+##### `VotePool.computeThreshold`
+
+Compute the BFT quorum threshold.
+
+```typescript
+static computeThreshold(n: number): number
+```
+
+**Returns:** 2f + 1 where f = floor((n - 1) / 3)
+
+---
+
+#### Methods
+
+##### `addPrevote`
+
+Record a prevote.
+
+```typescript
+addPrevote(voterPubkey: Uint8Array, blockHash: Uint8Array): boolean
+```
+
+**Returns:** `true` if the vote was added (not a duplicate)
+
+---
+
+##### `addPrecommit`
+
+Record a precommit.
+
+```typescript
+addPrecommit(voterPubkey: Uint8Array, blockHash: Uint8Array): boolean
+```
+
+**Returns:** `true` if the vote was added (not a duplicate)
+
+---
+
+##### `getPrevoteQuorum`
+
+Check if prevote quorum is reached.
+
+```typescript
+getPrevoteQuorum(): boolean
+```
+
+---
+
+##### `getPrecommitQuorum`
+
+Check if precommit quorum is reached.
+
+```typescript
+getPrecommitQuorum(): boolean
+```
+
+---
+
+##### `hasPrevoted`
+
+Check if a validator has already prevoted.
+
+```typescript
+hasPrevoted(voterPubkey: Uint8Array): boolean
+```
+
+---
+
+##### `hasPrecommitted`
+
+Check if a validator has already precommitted.
+
+```typescript
+hasPrecommitted(voterPubkey: Uint8Array): boolean
+```
+
+---
+
+##### `clear`
+
+Reset the vote pool.
+
+```typescript
+clear(): void
+```
+
+---
+
+#### Properties
+
+| Property          | Type     | Description                   |
+| ----------------- | -------- | ----------------------------- |
+| `prevoteCount`    | `number` | Number of prevotes received   |
+| `precommitCount`  | `number` | Number of precommits received |
+| `quorumThreshold` | `number` | Required votes for quorum     |
+| `size`            | `number` | Total validator count         |
+
+---
+
+### Block Chain
+
+The `BlockChain` stores committed blocks and provides verification.
+
+**Source:** `src/lib/consensus/block-chain.ts`
+
+#### Static Properties
+
+| Property       | Type         | Description                             |
+| -------------- | ------------ | --------------------------------------- |
+| `GENESIS_HASH` | `Uint8Array` | 32-byte zero hash for the genesis block |
+
+---
+
+#### Properties
+
+| Property     | Type          | Description                |
+| ------------ | ------------- | -------------------------- |
+| `height`     | `number`      | Number of committed blocks |
+| `latestHash` | `Uint8Array`  | Hash of the latest block   |
+| `latest`     | `BlockHeader` | Latest block header        |
+
+---
+
+#### Methods
+
+##### `append`
+
+Append a verified block to the chain.
+
+```typescript
+append(block: BlockHeader): void
+```
+
+**Throws:** If the block's `prev_hash` does not match `latestHash`
+
+---
+
+##### `getByRound`
+
+Get a block by round number.
+
+```typescript
+getByRound(round: number): BlockHeader | undefined
+```
+
+---
+
+##### `getByHash`
+
+Get a block by its hash.
+
+```typescript
+getByHash(hash: Uint8Array): BlockHeader | undefined
+```
+
+---
+
+##### `getRecent`
+
+Get the N most recent blocks.
+
+```typescript
+getRecent(count: number): BlockHeader[]
+```
+
+---
+
+##### `verify`
+
+Verify the entire chain (hash linkage from genesis to tip).
+
+```typescript
+verify(): boolean
+```
+
+**Returns:** `true` if all blocks are valid and linked correctly
+
+---
+
+##### `toJSON`
+
+Serialize the chain to a JSON-compatible object.
+
+```typescript
+toJSON(): object
+```
+
+---
+
+## Network API
+
+The Network API provides WebRTC peer-to-peer connectivity with a signaling server for peer discovery and SDP exchange.
+
+### PeerManager
+
+The main P2P orchestrator that manages peer connections, message routing, and network state.
+
+**Source:** `src/lib/network/peer-manager.ts`
+
+#### Constructor
+
+```typescript
+import { PeerManager } from '$lib/network';
+
+const manager = new PeerManager({
+  signalingUrl: 'wss://signal.example.com',
+  roomId: 'my-room',
+  keypair: { publicKey, secretKey },
+  iceServers?: [{ urls: 'stun:stun.l.google.com:19302' }],
+});
+```
+
+---
+
+#### Methods
+
+##### `connect`
+
+Connect to the signaling server and join a room.
+
+```typescript
+connect(): Promise<void>
+```
+
+---
+
+##### `disconnect`
+
+Leave the room and close all peer connections.
+
+```typescript
+disconnect(): void
+```
+
+---
+
+##### `broadcast`
+
+Send a message to all connected peers.
+
+```typescript
+broadcast(message: Uint8Array): void
+```
+
+---
+
+##### `sendTo`
+
+Send a message to a specific peer.
+
+```typescript
+sendTo(peerId: string, message: Uint8Array): void
+```
+
+---
+
+##### `getState`
+
+Get the current network state.
+
+```typescript
+getState(): NetworkState
+```
+
+**NetworkState:**
+
+```typescript
+interface NetworkState {
+  status: 'disconnected' | 'connecting' | 'connected';
+  peerCount: number;
+  peers: Map<string, PeerInfo>;
+}
+```
+
+---
+
+##### `getPeer`
+
+Get info for a specific peer.
+
+```typescript
+getPeer(peerId: string): PeerInfo | undefined
+```
+
+---
+
+##### `getPeerCount`
+
+Get the number of connected peers.
+
+```typescript
+getPeerCount(): number
+```
+
+---
+
+#### Events
+
+| Event                | Callback Signature                           | Description                 |
+| -------------------- | -------------------------------------------- | --------------------------- |
+| `onPeerConnected`    | `(peerId: string) => void`                   | Peer connection established |
+| `onPeerDisconnected` | `(peerId: string) => void`                   | Peer disconnected           |
+| `onMessage`          | `(peerId: string, data: Uint8Array) => void` | Message received from peer  |
+| `onStateChange`      | `(state: NetworkState) => void`              | Network state changed       |
+
+---
+
+### PeerConnection
+
+A WebRTC wrapper for a single peer-to-peer connection.
+
+**Source:** `src/lib/network/peer-connection.ts`
+
+#### Features
+
+- IPv6-prioritized ICE candidate handling
+- DataChannel management with ordered/unordered modes
+- Ping/pong RTT measurement
+- Automatic reconnection support
+
+---
+
+#### Methods
+
+##### `createOffer`
+
+Create an SDP offer for this connection.
+
+```typescript
+createOffer(): Promise<RTCSessionDescriptionInit>
+```
+
+---
+
+##### `handleOffer`
+
+Process an incoming SDP offer and generate an answer.
+
+```typescript
+handleOffer(offer: RTCSessionDescriptionInit): Promise<RTCSessionDescriptionInit>
+```
+
+---
+
+##### `handleAnswer`
+
+Process an incoming SDP answer.
+
+```typescript
+handleAnswer(answer: RTCSessionDescriptionInit): Promise<void>
+```
+
+---
+
+##### `addIceCandidate`
+
+Add an ICE candidate to the connection.
+
+```typescript
+addIceCandidate(candidate: RTCIceCandidateInit): Promise<void>
+```
+
+---
+
+##### `send`
+
+Send data over the DataChannel.
+
+```typescript
+send(data: Uint8Array): void
+```
+
+---
+
+##### `close`
+
+Close the connection and all associated channels.
+
+```typescript
+close(): void
+```
+
+---
+
+##### `getInfo`
+
+Get connection info including RTT and state.
+
+```typescript
+getInfo(): PeerInfo
+```
+
+**PeerInfo:**
+
+```typescript
+interface PeerInfo {
+  peerId: string;
+  rtt: number; // Round-trip time in ms
+  state: RTCPeerConnectionState;
+  connectedAt: number; // Unix timestamp
+}
+```
+
+---
+
+### SignalingClient
+
+WebSocket client for the Cloudflare Durable Object signaling server.
+
+**Source:** `src/lib/network/signaling-client.ts`
+
+#### Features
+
+- Cloudflare Durable Object signaling protocol
+- Auto-reconnect with exponential backoff
+- Room-based peer discovery
+
+---
+
+#### Methods
+
+##### `connect`
+
+Connect to the signaling server and join a room.
+
+```typescript
+connect(roomId: string): Promise<void>
+```
+
+---
+
+##### `disconnect`
+
+Leave the room and close the WebSocket.
+
+```typescript
+disconnect(): void
+```
+
+---
+
+##### `sendOffer`
+
+Send an SDP offer to a specific peer via signaling.
+
+```typescript
+sendOffer(peerId: string, offer: RTCSessionDescriptionInit): void
+```
+
+---
+
+##### `sendAnswer`
+
+Send an SDP answer to a specific peer via signaling.
+
+```typescript
+sendAnswer(peerId: string, answer: RTCSessionDescriptionInit): void
+```
+
+---
+
+##### `sendCandidate`
+
+Send an ICE candidate to a specific peer via signaling.
+
+```typescript
+sendCandidate(peerId: string, candidate: RTCIceCandidateInit): void
+```
+
+---
+
+##### `leave`
+
+Leave the current room.
+
+```typescript
+leave(): void
+```
+
+---
+
+### Message Codec
+
+Protobuf-based binary message encoder/decoder for network messages.
+
+**Source:** `src/lib/network/message-codec.ts`
+
+#### `initCodec`
+
+Initialize the message codec with the protobuf module.
+
+```typescript
+import { initCodec, MessageCodec } from '$lib/network/message-codec';
+
+await initCodec();
+```
+
+**Note:** Must be called once before using `MessageCodec`. Loads the generated protobuf definitions.
+
+---
+
+#### `MessageCodec`
+
+Static encode/decode utility for network messages.
+
+```typescript
+class MessageCodec {
+  static encode(message: NetworkMessage): Uint8Array;
+  static decode(data: Uint8Array): NetworkMessage;
+}
+```
+
+##### `encode`
+
+Encode a message to binary.
+
+```typescript
+static encode(message: NetworkMessage): Uint8Array
+```
+
+##### `decode`
+
+Decode a binary message.
+
+```typescript
+static decode(data: Uint8Array): NetworkMessage
+```
+
+---
+
+#### Message Types
+
+```typescript
+type NetworkMessage =
+  | PingMessage
+  | PongMessage
+  | CheckpointMessage
+  | WinnerMessage
+  | PeerDiscoveryMessage
+  | VdfProgressMessage
+  | ConsensusProposalMessage
+  | ConsensusVoteMessage
+  | NewRoundMessage;
+```
+
+| Type                 | Description                 |
+| -------------------- | --------------------------- |
+| `ping`               | Keep-alive ping             |
+| `pong`               | Keep-alive pong response    |
+| `checkpoint`         | VDF checkpoint data         |
+| `winner`             | VRF winner announcement     |
+| `peer-discovery`     | Peer list update            |
+| `vdf-progress`       | VDF computation progress    |
+| `consensus-proposal` | Block proposal broadcast    |
+| `consensus-vote`     | Prevote/precommit broadcast |
+| `new-round`          | New round announcement      |
+
+---
+
+### Consensus Message Helpers
+
+Helper functions for creating consensus-related network messages.
+
+**Source:** `src/lib/network/message-codec.ts`
+
+#### `createConsensusProposal`
+
+Create a consensus proposal message for broadcast.
+
+```typescript
+function createConsensusProposal(
+  round: number,
+  vdfState: Uint8Array,
+  vrfProof: Uint8Array,
+  blockHash: Uint8Array,
+  prevBlockHash: Uint8Array,
+  timestamp: number
+): ConsensusProposalMessage;
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `round` | `number` | Consensus round number |
+| `vdfState` | `Uint8Array` | VDF state at proposal time |
+| `vrfProof` | `Uint8Array` | VRF proof of leader election |
+| `blockHash` | `Uint8Array` | Hash of the proposed block |
+| `prevBlockHash` | `Uint8Array` | Hash of the previous block |
+| `timestamp` | `number` | Proposal timestamp (Unix ms) |
+
+---
+
+#### `createConsensusVote`
+
+Create a consensus vote message (prevote or precommit).
+
+```typescript
+function createConsensusVote(
+  round: number,
+  phase: 'prevote' | 'precommit',
+  blockHash: Uint8Array,
+  voterPubkey: Uint8Array
+): ConsensusVoteMessage;
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `round` | `number` | Consensus round number |
+| `phase` | `'prevote' \| 'precommit'` | Vote phase |
+| `blockHash` | `Uint8Array` | Hash being voted on |
+| `voterPubkey` | `Uint8Array` | Voter's public key |
+
+---
+
+#### `createNewRound`
+
+Create a new round announcement message.
+
+```typescript
+function createNewRound(round: number, seed: Uint8Array, validators: Uint8Array[]): NewRoundMessage;
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `round` | `number` | New round number |
+| `seed` | `Uint8Array` | Round seed (from previous block hash) |
+| `validators` | `Uint8Array[]` | Validator set for the new round |
+
+---
+
 ## Web Worker API
 
 The Web Worker runs VDF computation in the background and communicates with the main thread via messages.
@@ -1467,6 +2709,33 @@ setTimeout(() => {
     <p>{event.message}</p>
   {/each}
 </div>
+```
+
+### Consensus Round Lifecycle
+
+```typescript
+// Consensus round lifecycle
+import { ConsensusEngine } from '$lib/consensus';
+
+const engine = new ConsensusEngine(secretKey, publicKey, validators, {
+  tau: new Uint8Array(32).fill(0xff),
+  checkpointInterval: 1000,
+  roundTimeoutMs: 30_000
+});
+
+engine.on('onCommit', (round, block) => {
+  console.log(`Block finalized at round ${round}`);
+});
+
+// Start round
+const vrfProof = engine.startRound(1);
+
+if (engine.isLeader) {
+  const proposal = engine.propose(vdfState, Date.now());
+  // broadcast proposal
+} else {
+  // wait for proposal, validate, vote
+}
 ```
 
 ---

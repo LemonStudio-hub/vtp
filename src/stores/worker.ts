@@ -78,6 +78,15 @@ export interface WorkerState {
 
   /** The unique node identifier. */
   nodeId: string;
+
+  /** Current WASM heap memory usage in bytes. */
+  memoryUsage: number;
+
+  /** Rolling window of the last 60 speed readings for sparkline charts. */
+  speedHistory: number[];
+
+  /** Highest computation speed observed in the current session. */
+  peakSpeed: number;
 }
 
 /**
@@ -115,7 +124,10 @@ export const workerState = writable<WorkerState>({
   winnerCount: 0,
   luckPercentage: 100,
   publicKey: null,
-  nodeId: '---'
+  nodeId: '---',
+  memoryUsage: 0,
+  speedHistory: [],
+  peakSpeed: 0
 });
 
 /**
@@ -191,7 +203,31 @@ export function resetWorkerState() {
     winnerCount: 0,
     luckPercentage: 100,
     publicKey: null,
-    nodeId: '---'
+    nodeId: '---',
+    memoryUsage: 0,
+    speedHistory: [],
+    peakSpeed: 0
   });
   events.set([]);
+}
+
+/**
+ * Push a new speed reading into the history buffer.
+ *
+ * Maintains a rolling window of the last 60 speed readings for sparkline
+ * chart visualisation. Also updates the current speed and tracks the peak.
+ *
+ * @param speed - The new speed value (steps per second).
+ */
+export function pushSpeedHistory(speed: number) {
+  workerState.update((s) => {
+    const history = [...s.speedHistory, speed];
+    if (history.length > 60) history.shift();
+    return {
+      ...s,
+      speed,
+      speedHistory: history,
+      peakSpeed: Math.max(s.peakSpeed, speed)
+    };
+  });
 }

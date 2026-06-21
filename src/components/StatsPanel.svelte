@@ -2,24 +2,23 @@
   StatsPanel Component
 
   Displays real-time statistics for VDF computation, including:
-  - Real-time speed (steps/sec)
+  - Real-time speed (steps/sec) with micro-trend bars
   - Cumulative steps
   - Uptime
   - Draw count
   - Luck index
+  - Memory usage
+  - Peak speed
 
   Data source:
-  Subscribes to workerState via Svelte Store for real-time data
-
-  Usage example:
-  ```svelte
-  <StatsPanel />
-  ```
+  Subscribes to workerState via Svelte Store for real-time data.
+  Uses utility functions from $utils for formatting.
 -->
 
 <script lang="ts">
   import { workerState } from '$stores/worker';
   import { isVisible } from '$stores/visibility';
+  import { formatNumber, formatSpeed, formatTime, formatBytes } from '$utils';
 
   /** Animated values for smooth transitions */
   let displaySpeed = 0;
@@ -27,8 +26,7 @@
   let displayUptime = 0;
 
   /**
-   * Reactive animation updates
-   *
+   * Reactive animation updates.
    * Smoothly interpolates displayed values towards actual values.
    * Only animates when the tab is visible to conserve resources.
    */
@@ -38,21 +36,15 @@
       animateValue('step', $workerState.currentStep);
       animateValue('uptime', $workerState.uptime);
     } else {
-      // When hidden, snap to values directly (no animation)
       displaySpeed = $workerState.speed;
       displayStep = $workerState.currentStep;
       displayUptime = $workerState.uptime;
     }
   }
 
-  /**
-   * Animate a numeric value
-   *
-   * Smoothly transitions from current displayed value to target value
-   *
-   * @param key - The value key to animate
-   * @param target - The target value
-   */
+  /** Micro-trend bars from recent speed history */
+  $: trendBars = $workerState.speedHistory.slice(-12);
+
   function animateValue(key: string, target: number) {
     const current = key === 'speed' ? displaySpeed : key === 'step' ? displayStep : displayUptime;
     const diff = target - current;
@@ -72,85 +64,42 @@
     });
   }
 
-  /**
-   * Format a number with locale-specific thousands separators
-   *
-   * @param num - The number to format
-   * @returns Formatted string
-   *
-   * @example
-   * formatNumber(1234567) // "1,234,567"
-   */
-  function formatNumber(num: number): string {
-    return Math.floor(num).toLocaleString();
-  }
-
-  /**
-   * Format speed value to human-readable format
-   *
-   * Automatically selects appropriate unit (M, K, or raw).
-   *
-   * @param speed - Speed value in steps/second
-   * @returns Formatted string
-   *
-   * @example
-   * formatSpeed(1500000) // "1.5M"
-   * formatSpeed(1500) // "1.5K"
-   * formatSpeed(500) // "500"
-   */
-  function formatSpeed(speed: number): string {
-    if (speed >= 1000000) {
-      return `${(speed / 1000000).toFixed(1)}M`;
-    } else if (speed >= 1000) {
-      return `${(speed / 1000).toFixed(1)}K`;
-    }
-    return speed.toFixed(0);
-  }
-
-  /**
-   * Format time in seconds to HH:MM:SS format
-   *
-   * @param seconds - Time in seconds
-   * @returns Formatted time string
-   *
-   * @example
-   * formatTime(3661) // "01:01:01"
-   */
-  function formatTime(seconds: number): string {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }
-
-  /**
-   * Get luck color based on percentage
-   *
-   * Returns appropriate color class based on luck value
-   */
   function getLuckColor(percent: number): string {
     if (percent >= 120) return 'luck-excellent';
     if (percent >= 100) return 'luck-good';
     if (percent >= 80) return 'luck-normal';
     return 'luck-low';
   }
+
+  /** Normalize trend bars to [0, 1] range */
+  function normalizeTrend(values: number[]): number[] {
+    if (values.length === 0) return [];
+    const max = Math.max(...values) || 1;
+    return values.map((v) => v / max);
+  }
 </script>
 
-<!-- Stats panel grid layout -->
 <div class="stats-grid">
-  <!-- Real-time speed -->
-  <div class="stat-item">
+  <!-- Speed with trend -->
+  <div class="stat-item stat-wide">
     <div class="stat-header">
       <span class="stat-icon">⚡</span>
       <span class="label">Speed</span>
     </div>
-    <span class="value speed-value">
-      {formatSpeed(displaySpeed)}
-      <span class="unit">steps/s</span>
-    </span>
+    <div class="stat-body">
+      <span class="value speed-value">
+        {formatSpeed(displaySpeed)}
+        <span class="unit">steps/s</span>
+      </span>
+      <div class="trend-bars">
+        {#each normalizeTrend(trendBars) as bar}
+          <div class="trend-bar" style="height: {Math.max(bar * 100, 4)}%"></div>
+        {/each}
+      </div>
+    </div>
   </div>
 
-  <!-- Cumulative steps -->
+  <!-- Total Steps -->
   <div class="stat-item">
     <div class="stat-header">
       <span class="stat-icon">📊</span>
@@ -168,7 +117,7 @@
     <span class="value mono">{formatTime(displayUptime)}</span>
   </div>
 
-  <!-- Draw count -->
+  <!-- Draws -->
   <div class="stat-item">
     <div class="stat-header">
       <span class="stat-icon">🎯</span>
@@ -177,8 +126,8 @@
     <span class="value">{formatNumber($workerState.winnerCount)}</span>
   </div>
 
-  <!-- Luck index -->
-  <div class="stat-item luck-stat">
+  <!-- Luck Index -->
+  <div class="stat-item">
     <div class="stat-header">
       <span class="stat-icon">🍀</span>
       <span class="label">Luck Index</span>
@@ -190,69 +139,104 @@
       {/if}
     </span>
   </div>
+
+  <!-- Memory -->
+  <div class="stat-item">
+    <div class="stat-header">
+      <span class="stat-icon">💾</span>
+      <span class="label">Memory</span>
+    </div>
+    <span class="value" class:muted={$workerState.memoryUsage === 0}>
+      {$workerState.memoryUsage > 0 ? formatBytes($workerState.memoryUsage) : 'N/A'}
+    </span>
+  </div>
+
+  <!-- Peak Speed -->
+  <div class="stat-item">
+    <div class="stat-header">
+      <span class="stat-icon">🚀</span>
+      <span class="label">Peak Speed</span>
+    </div>
+    <span class="value">
+      {formatSpeed($workerState.peakSpeed)}
+      <span class="unit">steps/s</span>
+    </span>
+  </div>
 </div>
 
 <style>
-  /* Stats grid layout */
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-md);
   }
 
-  /* Stat item container */
   .stat-item {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.625rem;
+    padding: 0.875rem;
     background: rgba(255, 255, 255, 0.02);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
     transition: all 0.3s ease;
   }
 
   .stat-item:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(0, 255, 136, 0.1);
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-accent);
     transform: translateY(-2px);
   }
 
-  /* Stat header */
+  .stat-wide {
+    grid-column: span 1;
+  }
+
   .stat-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-sm);
   }
 
   .stat-icon {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
-  /* Label styles */
   .label {
-    font-size: 0.75rem;
-    color: #666;
+    font-size: 0.6875rem;
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
 
-  /* Value styles */
+  .stat-body {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
   .value {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    color: #00ff88;
-    font-family: 'Courier New', monospace;
+    color: var(--color-accent-green);
+    font-family: var(--font-mono);
     line-height: 1;
   }
 
   .value.mono {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+  }
+
+  .value.muted {
+    color: var(--color-text-muted);
+    font-weight: 400;
+    font-size: 1.25rem;
   }
 
   .unit {
-    font-size: 0.75rem;
-    color: #666;
+    font-size: 0.625rem;
+    color: var(--color-text-muted);
     margin-left: 0.25rem;
   }
 
@@ -261,34 +245,54 @@
     align-items: baseline;
   }
 
+  /* Trend bars */
+  .trend-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  .trend-bar {
+    width: 4px;
+    min-height: 2px;
+    background: var(--color-accent-green);
+    border-radius: 1px;
+    opacity: 0.6;
+    transition: height 0.3s ease;
+  }
+
+  .trend-bar:last-child {
+    opacity: 1;
+  }
+
   /* Luck colors */
   .luck-excellent {
     color: #10b981;
   }
-
   .luck-good {
-    color: #00ff88;
+    color: var(--color-accent-green);
   }
-
   .luck-normal {
-    color: #f59e0b;
+    color: var(--color-accent-amber);
   }
-
   .luck-low {
-    color: #ef4444;
+    color: var(--color-accent-red);
   }
 
   .luck-badge {
     display: inline-block;
     padding: 0.125rem 0.5rem;
-    font-size: 0.625rem;
+    font-size: 0.5625rem;
     font-weight: 600;
-    background: rgba(0, 255, 136, 0.2);
-    color: #00ff88;
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--color-accent-green);
     border-radius: 4px;
-    margin-left: 0.5rem;
+    margin-left: 0.375rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    vertical-align: middle;
   }
 
   @media (max-width: 768px) {
@@ -297,7 +301,11 @@
     }
 
     .value {
-      font-size: 1.25rem;
+      font-size: 1.125rem;
+    }
+
+    .stat-wide {
+      grid-column: span 1;
     }
   }
 </style>

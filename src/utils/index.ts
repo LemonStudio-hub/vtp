@@ -157,31 +157,70 @@ export function generateNodeId(): string {
   return result;
 }
 
+// Re-export sleep from shared module (also importable standalone for Web Worker use)
+export { sleep } from '$lib/utils/sleep';
+
 /**
- * Asynchronously pause execution for a specified duration.
+ * Format a timestamp as a relative time string.
  *
- * Returns a {@link Promise} that resolves after the given number of
- * milliseconds. Commonly used with `await` for introducing delays in
- * async workflows.
+ * Returns human-readable relative time like "just now", "2m ago", "1h ago".
  *
- * @param ms - The number of milliseconds to sleep.
- * @returns A `Promise<void>` that resolves after the specified delay.
+ * @param timestamp - Unix timestamp in milliseconds.
+ * @returns A relative time string.
  *
  * @example
  * ```typescript
- * async function example() {
- *   console.log('Start');
- *   await sleep(1000);
- *   console.log('End');
- * }
+ * formatRelativeTime(Date.now() - 5000)  // "just now"
+ * formatRelativeTime(Date.now() - 120000) // "2m ago"
+ * formatRelativeTime(Date.now() - 3600000) // "1h ago"
  * ```
- *
- * @note
- * - Implemented using `setTimeout`
- * - Can be awaited to pause execution within async functions
  */
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+/**
+ * Calculate estimated time remaining for a computation.
+ *
+ * @param currentStep - Current progress step.
+ * @param totalSteps - Total target steps.
+ * @param speed - Current computation speed (steps per second).
+ * @returns Estimated seconds remaining, or -1 if speed is 0.
+ *
+ * @example
+ * ```typescript
+ * calculateETA(500, 1000, 100) // 5
+ * calculateETA(500, 1000, 0)   // -1
+ * ```
+ */
+export function calculateETA(currentStep: number, totalSteps: number, speed: number): number {
+  if (speed <= 0 || currentStep >= totalSteps) return -1;
+  return Math.ceil((totalSteps - currentStep) / speed);
+}
+
+/**
+ * Clamp a number between a minimum and maximum value.
+ *
+ * @param value - The value to clamp.
+ * @param min - The minimum bound.
+ * @param max - The maximum bound.
+ * @returns The clamped value.
+ *
+ * @example
+ * ```typescript
+ * clamp(5, 0, 10)   // 5
+ * clamp(-1, 0, 10)  // 0
+ * clamp(15, 0, 10)  // 10
+ * ```
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 /**

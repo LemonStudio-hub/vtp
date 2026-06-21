@@ -15,7 +15,15 @@
     "format": "prettier --write .",
     "wasm:build": "cd src/lib/vtp-core && wasm-pack build --target web --out-dir ../../../static/wasm",
     "wasm:test": "cd src/lib/vtp-core && cargo test",
-    "worker:build": "node scripts/build-worker.js"
+    "bench": "cd src/lib/vtp-core && cargo bench",
+    "bench:vdf": "cd src/lib/vtp-core && cargo bench --bench vdf_bench",
+    "bench:vrf": "cd src/lib/vtp-core && cargo bench --bench vrf_bench",
+    "bench:session": "cd src/lib/vtp-core && cargo bench --bench session_bench",
+    "bench:report": "cd src/lib/vtp-core && cargo bench 2>&1 | tee bench-report.txt",
+    "worker:build": "node scripts/build-worker.js",
+    "signaling:dev": "cd signaling && npx wrangler dev",
+    "signaling:deploy": "cd signaling && npx wrangler deploy",
+    "proto:generate": "cd proto && npm run generate"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",

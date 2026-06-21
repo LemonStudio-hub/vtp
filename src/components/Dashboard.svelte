@@ -1,23 +1,20 @@
 <!--
   Dashboard Component
 
-  Main dashboard interface for the VTP node, responsible for:
-  1. Displaying VDF computation progress
-  2. Showing real-time statistics
-  3. Providing control buttons (start/pause/resume)
-  4. Displaying the event log
+  Main dashboard interface for the VTP node, redesigned with a 3-section layout:
+
+  Section 1 — Hero area: IdentityBadge + ProgressHero side by side
+  Section 2 — Metrics grid: StatsPanel cards + MemoryGauge + SpeedChart
+  Section 3 — Detail panels: SystemHealth + Controls + EventLog
 
   Component structure:
   - IdentityBadge: Node identity indicator
-  - VDFCanvas: VDF progress visualization
-  - StatsPanel: Real-time statistics panel
-  - EventLog: Event log
-  - Control button area
-
-  Usage example:
-  ```svelte
-  <Dashboard />
-  ```
+  - ProgressHero: Enhanced progress ring with key metrics
+  - StatsPanel: Real-time statistics grid
+  - MemoryGauge: WASM memory usage indicator
+  - SpeedChart: Speed history sparkline
+  - SystemHealth: Background subsystem status
+  - EventLog: Event log with filtering
 -->
 
 <script lang="ts">
@@ -26,7 +23,11 @@
   import StatsPanel from './StatsPanel.svelte';
   import EventLog from './EventLog.svelte';
   import IdentityBadge from './IdentityBadge.svelte';
-  import VDFCanvas from './VDFCanvas.svelte';
+  import ProgressHero from './ProgressHero.svelte';
+  import SpeedChart from './SpeedChart.svelte';
+  import MemoryGauge from './MemoryGauge.svelte';
+  import SystemHealth from './SystemHealth.svelte';
+  import NetworkStatus from './NetworkStatus.svelte';
 
   /** Reference to the Web Worker instance */
   let worker: Worker | null = null;
@@ -37,37 +38,19 @@
   /** Animation trigger for staggered entrance */
   let mounted = false;
 
-  /**
-   * Subscribe to the Worker Store when the component mounts
-   *
-   * Obtains a reference to the Worker instance for sending control commands
-   */
   onMount(() => {
     unsubscribe = workerStore.subscribe((w) => {
       worker = w;
     });
-
-    // Trigger staggered entrance animations
     setTimeout(() => {
       mounted = true;
     }, 200);
   });
 
-  /**
-   * Unsubscribe when the component is destroyed
-   *
-   * Prevents memory leaks
-   */
   onDestroy(() => {
     if (unsubscribe) unsubscribe();
   });
 
-  /**
-   * Handle the start button click
-   *
-   * Sends a start command to the Worker with VDF configuration parameters
-   * and updates the store with totalSteps for progress calculation.
-   */
   function handleStart() {
     if (worker) {
       const totalSteps = 1000000;
@@ -83,11 +66,6 @@
     }
   }
 
-  /**
-   * Handle the pause button click
-   *
-   * Sends a pause command to the Worker and updates the store
-   */
   function handlePause() {
     if (worker) {
       workerState.update((s) => ({ ...s, isPaused: true }));
@@ -95,11 +73,6 @@
     }
   }
 
-  /**
-   * Handle the resume button click
-   *
-   * Sends a resume command to the Worker and updates the store
-   */
   function handleResume() {
     if (worker) {
       workerState.update((s) => ({ ...s, isPaused: false }));
@@ -108,49 +81,63 @@
   }
 </script>
 
-<!-- Main dashboard layout -->
 <div class="dashboard" class:mounted>
-  <!-- Header: identity indicator and title -->
-  <header class="header-animate">
-    <IdentityBadge />
-    <div class="title-container">
-      <h1>VTP Node</h1>
-      <span class="subtitle">Verifiable Time Proof</span>
+  <!-- Section 1: Hero area -->
+  <section class="hero-section glass-card">
+    <div class="hero-left">
+      <IdentityBadge />
     </div>
-    <div class="status-indicator" class:running={$workerState.isRunning}>
-      <span class="status-dot"></span>
-      <span class="status-text">{$workerState.isRunning ? 'Computing' : 'Ready'}</span>
+    <div class="hero-center">
+      <ProgressHero />
     </div>
-  </header>
-
-  <!-- Main content grid -->
-  <div class="content-grid">
-    <!-- Left column: VDF visualization and stats -->
-    <div class="left-column">
-      <!-- VDF progress visualization area -->
-      <section class="vdf-section glass-card">
-        <VDFCanvas />
-      </section>
-
-      <!-- Statistics panel -->
-      <section class="stats-section glass-card">
-        <StatsPanel />
-      </section>
+    <div class="hero-status">
+      <div class="status-indicator" class:running={$workerState.isRunning}>
+        <span class="status-dot"></span>
+        <span class="status-text"
+          >{$workerState.isRunning
+            ? $workerState.isPaused
+              ? 'Paused'
+              : 'Computing'
+            : 'Ready'}</span
+        >
+      </div>
     </div>
+  </section>
 
-    <!-- Right column: controls and event log -->
-    <div class="right-column">
-      <!-- Control button area -->
-      <section class="controls glass-card">
+  <!-- Section 2: Metrics grid -->
+  <section class="metrics-section">
+    <div class="stats-area glass-card">
+      <StatsPanel />
+    </div>
+    <div class="memory-area glass-card">
+      <MemoryGauge />
+    </div>
+    <div class="chart-area glass-card">
+      <SpeedChart />
+    </div>
+  </section>
+
+  <!-- Section 3: Detail panels -->
+  <section class="detail-section">
+    <div class="detail-left">
+      <!-- System health -->
+      <div class="health-area glass-card">
+        <SystemHealth />
+      </div>
+
+      <!-- Network status -->
+      <div class="network-area glass-card">
+        <NetworkStatus />
+      </div>
+
+      <!-- Controls -->
+      <div class="controls-area glass-card">
         <h3 class="section-title">Controls</h3>
         <div class="button-group">
-          <!-- Start button: only enabled when not running -->
           <button class="btn btn-start" on:click={handleStart} disabled={$workerState.isRunning}>
             <span class="btn-icon">▶</span>
             <span>Start</span>
           </button>
-
-          <!-- Pause button: only enabled when running and not already paused -->
           <button
             class="btn btn-pause"
             on:click={handlePause}
@@ -159,29 +146,25 @@
             <span class="btn-icon">⏸</span>
             <span>Pause</span>
           </button>
-
-          <!-- Resume button: only enabled when paused -->
           <button class="btn btn-resume" on:click={handleResume} disabled={!$workerState.isPaused}>
             <span class="btn-icon">▶</span>
             <span>Resume</span>
           </button>
         </div>
-      </section>
-
-      <!-- Event log area -->
-      <section class="events-section glass-card">
-        <EventLog />
-      </section>
+      </div>
     </div>
-  </div>
+
+    <div class="detail-right glass-card">
+      <EventLog />
+    </div>
+  </section>
 </div>
 
 <style>
-  /* Dashboard main container */
   .dashboard {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: var(--space-xl);
     opacity: 0;
     transform: translateY(30px);
     transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
@@ -192,78 +175,85 @@
     transform: translateY(0);
   }
 
-  /* Header area */
-  .header-animate {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    padding: 1.5rem 2rem;
-    background: rgba(22, 33, 62, 0.6);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 255, 136, 0.1);
-    border-radius: 16px;
+  /* ── Glass card base ── */
+  :global(.glass-card) {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    border: var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
     opacity: 0;
-    transform: translateX(-20px);
-    animation: slideIn 0.5s ease forwards;
-    animation-delay: 0.3s;
+    transform: translateY(20px);
+    animation: fadeInUp 0.6s ease forwards;
   }
 
-  @keyframes slideIn {
+  :global(.glass-card:nth-child(1)) {
+    animation-delay: 0.3s;
+  }
+  :global(.glass-card:nth-child(2)) {
+    animation-delay: 0.4s;
+  }
+  :global(.glass-card:nth-child(3)) {
+    animation-delay: 0.5s;
+  }
+  :global(.glass-card:nth-child(4)) {
+    animation-delay: 0.6s;
+  }
+
+  @keyframes fadeInUp {
     to {
       opacity: 1;
-      transform: translateX(0);
+      transform: translateY(0);
     }
   }
 
-  .title-container {
+  /* ── Section 1: Hero ── */
+  .hero-section {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xl);
+    animation-delay: 0.2s;
+  }
+
+  .hero-left {
+    flex-shrink: 0;
+  }
+
+  .hero-center {
     flex: 1;
+    display: flex;
+    justify-content: center;
   }
 
-  /* Title styles */
-  h1 {
-    margin: 0;
-    font-size: 2rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    line-height: 1.2;
+  .hero-status {
+    flex-shrink: 0;
   }
 
-  .subtitle {
-    font-size: 0.875rem;
-    color: #666;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  /* Status indicator */
   .status-indicator {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-sm);
     padding: 0.5rem 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
   }
 
   .status-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #666;
+    background: var(--color-text-muted);
     transition: all 0.3s ease;
   }
 
   .status-indicator.running .status-dot {
-    background: #00ff88;
-    box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-    animation: pulse 1.5s ease-in-out infinite;
+    background: var(--color-accent-green);
+    box-shadow: 0 0 10px var(--color-accent-green-glow);
+    animation: statusPulse 1.5s ease-in-out infinite;
   }
 
-  @keyframes pulse {
+  @keyframes statusPulse {
     0%,
     100% {
       transform: scale(1);
@@ -276,117 +266,88 @@
   }
 
   .status-text {
-    font-size: 0.875rem;
-    color: #888;
-    font-family: 'Courier New', monospace;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
   }
 
   .status-indicator.running .status-text {
-    color: #00ff88;
+    color: var(--color-accent-green);
   }
 
-  /* Content grid layout */
-  .content-grid {
+  /* ── Section 2: Metrics ── */
+  .metrics-section {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
+    grid-template-columns: 1fr auto auto;
+    gap: var(--space-xl);
+    align-items: stretch;
   }
 
-  @media (max-width: 1024px) {
-    .content-grid {
-      grid-template-columns: 1fr;
-    }
+  .stats-area {
+    min-width: 0;
   }
 
-  .left-column,
-  .right-column {
+  .memory-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-lg) var(--space-md);
+  }
+
+  .chart-area {
+    min-width: 280px;
+    max-width: 360px;
+  }
+
+  /* ── Section 3: Details ── */
+  .detail-section {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: var(--space-xl);
+  }
+
+  .detail-left {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: var(--space-xl);
   }
 
-  /* Glass card effect */
-  .glass-card {
-    background: rgba(22, 33, 62, 0.6);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 255, 136, 0.1);
-    border-radius: 16px;
-    padding: 1.5rem;
-    opacity: 0;
-    transform: translateY(20px);
-    animation: fadeInUp 0.6s ease forwards;
+  .controls-area {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
   }
 
-  .glass-card:nth-child(1) {
-    animation-delay: 0.4s;
-  }
-  .glass-card:nth-child(2) {
-    animation-delay: 0.5s;
-  }
-  .glass-card:nth-child(3) {
-    animation-delay: 0.6s;
-  }
-  .glass-card:nth-child(4) {
-    animation-delay: 0.7s;
-  }
-
-  @keyframes fadeInUp {
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* Section title */
   .section-title {
-    margin: 0 0 1rem 0;
-    font-size: 0.875rem;
-    color: #666;
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
 
-  /* VDF visualization area */
-  .vdf-section {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 400px;
-  }
-
-  /* Statistics panel area */
-  .stats-section {
-    background: rgba(22, 33, 62, 0.6);
-  }
-
-  /* Control button container */
-  .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
   .button-group {
     display: flex;
-    gap: 1rem;
+    gap: var(--space-md);
     flex-wrap: wrap;
   }
 
-  /* Generic button styles */
   .btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.875rem 1.5rem;
-    font-size: 0.9375rem;
+    gap: var(--space-sm);
+    padding: 0.75rem 1.25rem;
+    font-size: 0.875rem;
     font-weight: 600;
+    font-family: var(--font-sans);
     border: none;
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     flex: 1;
-    min-width: 120px;
+    min-width: 100px;
     position: relative;
     overflow: hidden;
   }
@@ -407,10 +368,9 @@
   }
 
   .btn-icon {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
-  /* Start button */
   .btn-start:not(:disabled) {
     background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
     color: #0a0a1a;
@@ -422,11 +382,6 @@
     box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
   }
 
-  .btn-start:not(:disabled):active {
-    transform: translateY(0);
-  }
-
-  /* Pause button */
   .btn-pause:not(:disabled) {
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     color: #0a0a1a;
@@ -438,7 +393,6 @@
     box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
   }
 
-  /* Resume button */
   .btn-resume:not(:disabled) {
     background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
     color: #fff;
@@ -450,31 +404,49 @@
     box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
   }
 
-  /* Disabled button styles */
   .btn:disabled {
-    background: rgba(255, 255, 255, 0.05);
-    color: #444;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--color-text-muted);
     cursor: not-allowed;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--color-border);
   }
 
-  /* Event log area */
-  .events-section {
-    flex: 1;
-    max-height: 400px;
+  .detail-right {
+    max-height: 480px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 1024px) {
+    .metrics-section {
+      grid-template-columns: 1fr auto;
+    }
+
+    .chart-area {
+      grid-column: 1 / -1;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .detail-section {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 768px) {
-    .header-animate {
+    .hero-section {
       flex-direction: column;
       text-align: center;
     }
 
-    .title-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+    .metrics-section {
+      grid-template-columns: 1fr;
+    }
+
+    .memory-area {
+      padding: var(--space-md);
     }
 
     .button-group {

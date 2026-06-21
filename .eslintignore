@@ -1,5 +1,7 @@
 build/
 static/wasm/
+src/lib/vtp-core/pkg/
+proto/
 .svelte-kit/
 node_modules/
 target/

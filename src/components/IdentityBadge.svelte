@@ -11,16 +11,6 @@
   - Real-time display of the node running status
   - Reactive updates
   - Animated glow effect when running
-
-  Algorithm description:
-  1. Compute a simple hash of the public key
-  2. Derive an HSB colour from the hash value
-  3. Render a 4x4 grid pattern based on the hash bits
-
-  Usage example:
-  ```svelte
-  <IdentityBadge />
-  ```
 -->
 
 <script lang="ts">
@@ -33,125 +23,75 @@
   let ctx: CanvasRenderingContext2D | null = null;
 
   /**
-   * Reactive identity pattern update
-   *
-   * Automatically draws the identity pattern when both the canvas
-   * element and the public key are available.
-   * Uses Svelte's reactive declaration syntax.
+   * Reactive identity pattern update.
+   * Draws the identity pattern when canvas and public key are available.
    */
   $: if (canvas && $workerState.publicKey) {
     drawIdentity();
   }
 
   /**
-   * Draw the identity pattern
-   *
-   * Generates a unique Identicon pattern based on the public key.
-   *
-   * Algorithm steps:
-   * 1. Compute a simple hash of the public key to obtain a numeric value
-   * 2. Use hash % 360 as the base hue
-   * 3. Fill the background with the base colour
-   * 4. For each hash bit, decide whether to draw a complementary-colour block
-   * 5. Produce a 4x4 symmetric pattern
+   * Draw the identity pattern.
+   * Generates a unique Identicon from the public key hash.
    */
   function drawIdentity() {
     if (!canvas) return;
-
     ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas dimensions
     const size = 64;
     canvas.width = size;
     canvas.height = size;
 
-    // Compute hash value and base hue
     const hash = simpleHash($workerState.publicKey);
     const hue = hash % 360;
 
-    // Draw background with gradient
+    // Background gradient
     const gradient = ctx.createLinearGradient(0, 0, size, size);
     gradient.addColorStop(0, `hsl(${hue}, 70%, 50%)`);
     gradient.addColorStop(1, `hsl(${(hue + 30) % 360}, 70%, 40%)`);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
 
-    // Set complementary colour with transparency for depth
+    // Pattern blocks
     ctx.fillStyle = `hsla(${(hue + 180) % 360}, 70%, 50%, 0.8)`;
-
-    // Draw the 4x4 grid pattern
-    // Each hash bit determines whether to draw a block
     for (let i = 0; i < 4; i++) {
       for (let j = 0; j < 4; j++) {
-        // Check the corresponding bit of the hash
         if ((hash >> (i * 4 + j)) & 1) {
-          const x = i * 16;
-          const y = j * 16;
-
-          // Draw block with slight rounded corners effect
-          ctx.fillRect(x + 1, y + 1, 14, 14);
+          ctx.fillRect(i * 16 + 1, j * 16 + 1, 14, 14);
         }
       }
     }
 
-    // Add a subtle overlay for depth
-    const overlayGradient = ctx.createRadialGradient(
-      size / 2,
-      size / 2,
-      0,
-      size / 2,
-      size / 2,
-      size / 2
-    );
-    overlayGradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
-    overlayGradient.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
-    ctx.fillStyle = overlayGradient;
+    // Depth overlay
+    const overlay = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    overlay.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
+    overlay.addColorStop(1, 'rgba(0, 0, 0, 0.1)');
+    ctx.fillStyle = overlay;
     ctx.fillRect(0, 0, size, size);
   }
 
   /**
-   * Simple hash function
-   *
-   * Computes a simple hash of a byte array and returns a numeric value.
-   * Used as a seed for generating the identity pattern.
-   *
-   * @param data - Byte array to hash (may be null)
-   * @returns Hash value (non-negative integer)
-   *
-   * Algorithm description:
-   * - Uses a variant of the classic DJB2 hash algorithm
-   * - Only processes the first 16 bytes to avoid excessively long inputs
-   * - Uses bitwise operations to ensure a 32-bit integer result
-   * - Returns the absolute value to guarantee non-negativity
+   * Simple DJB2 hash function for generating the identicon seed.
    */
   function simpleHash(data: Uint8Array | null): number {
     if (!data) return 0;
-
     let hash = 0;
-    // Only process the first 16 bytes
     for (let i = 0; i < Math.min(data.length, 16); i++) {
-      // DJB2 hash algorithm: hash = hash * 33 + byte
       hash = ((hash << 5) - hash + data[i]) | 0;
     }
     return Math.abs(hash);
   }
 </script>
 
-<!-- Identity badge container -->
 <div class="identity-badge" class:running={$workerState.isRunning}>
-  <!-- Avatar container with glow effect -->
   <div class="avatar-container">
     <canvas bind:this={canvas} class="avatar"></canvas>
     <div class="avatar-glow"></div>
   </div>
 
-  <!-- Node information -->
   <div class="node-info">
-    <!-- Node ID -->
     <span class="node-id">Node {$workerState.nodeId || '---'}</span>
-
-    <!-- Running status -->
     <div class="status-container">
       <span class="status-dot" class:active={$workerState.isRunning}></span>
       <span class="status" class:running={$workerState.isRunning}>
@@ -162,26 +102,23 @@
 </div>
 
 <style>
-  /* Identity badge container */
   .identity-badge {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: var(--space-md);
   }
 
-  /* Avatar container */
   .avatar-container {
     position: relative;
     width: 56px;
     height: 56px;
   }
 
-  /* Identity pattern styles */
   .avatar {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    border: 2px solid var(--color-border);
     transition: all 0.3s ease;
   }
 
@@ -189,7 +126,6 @@
     border-color: rgba(0, 255, 136, 0.3);
   }
 
-  /* Avatar glow effect */
   .avatar-glow {
     position: absolute;
     top: -4px;
@@ -217,53 +153,47 @@
     }
   }
 
-  /* Node information container */
   .node-info {
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
   }
 
-  /* Node ID styles */
   .node-id {
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-mono);
     font-size: 0.9375rem;
     font-weight: 600;
-    color: #e6e6e6;
+    color: var(--color-text-primary);
     letter-spacing: 0.02em;
   }
 
-  /* Status container */
   .status-container {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-sm);
   }
 
-  /* Status dot */
   .status-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #555;
+    background: var(--color-text-muted);
     transition: all 0.3s ease;
   }
 
   .status-dot.active {
-    background: #00ff88;
-    box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+    background: var(--color-accent-green);
+    box-shadow: 0 0 8px var(--color-accent-green-glow);
   }
 
-  /* Status styles */
   .status {
     font-size: 0.8125rem;
-    color: #666;
-    font-family: 'Courier New', monospace;
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
     letter-spacing: 0.02em;
   }
 
-  /* Running status styles */
   .status.running {
-    color: #00ff88;
+    color: var(--color-accent-green);
   }
 </style>

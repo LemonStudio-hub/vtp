@@ -7,6 +7,7 @@
 //!
 //! These functions primarily serve as helpers for VDF and VRF implementations.
 
+use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 use wasm_bindgen::prelude::*;
 
@@ -139,6 +140,58 @@ pub fn generate_random_bytes(length: u32) -> Vec<u8> {
     bytes
 }
 
+/// Sign data using Ed25519.
+///
+/// Produces a standard 64-byte Ed25519 signature over the given data
+/// using the provided 32-byte secret key.
+///
+/// # Arguments
+/// - `secret_key`: 32-byte Ed25519 secret key
+/// - `data`: The data to sign
+///
+/// # Returns
+/// Returns a 64-byte Ed25519 signature.
+///
+/// # Errors
+/// Returns an error if the secret key is not a valid 32-byte Ed25519 key.
+#[wasm_bindgen]
+pub fn ed25519_sign(secret_key: &[u8], data: &[u8]) -> Result<Vec<u8>, JsValue> {
+    if secret_key.len() != 32 {
+        return Err(JsValue::from_str("Secret key must be 32 bytes"));
+    }
+    let key_bytes: [u8; 32] =
+        secret_key.try_into().map_err(|_| JsValue::from_str("Invalid secret key length"))?;
+    let key = SigningKey::from_bytes(&key_bytes);
+    Ok(key.sign(data).to_bytes().to_vec())
+}
+
+/// Verify an Ed25519 signature.
+///
+/// Verifies a 64-byte Ed25519 signature against the given data and
+/// 32-byte public key.
+///
+/// # Arguments
+/// - `public_key`: 32-byte Ed25519 verifying key
+/// - `data`: The signed data
+/// - `signature`: 64-byte Ed25519 signature
+///
+/// # Returns
+/// Returns `true` if the signature is valid, `false` otherwise.
+#[wasm_bindgen]
+pub fn ed25519_verify(public_key: &[u8], data: &[u8], signature: &[u8]) -> bool {
+    let Ok(pk_bytes): Result<[u8; 32], _> = public_key.try_into() else {
+        return false;
+    };
+    let Ok(sig_bytes): Result<[u8; 64], _> = signature.try_into() else {
+        return false;
+    };
+    let Ok(key) = VerifyingKey::from_bytes(&pk_bytes) else {
+        return false;
+    };
+    let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes);
+    key.verify(data, &sig).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,5 +257,44 @@ mod tests {
         assert_eq!(bytes1.len(), 32);
         assert_eq!(bytes2.len(), 32);
         assert_ne!(bytes1, bytes2);
+    }
+
+    /// Test Ed25519 signing and verification.
+    #[wasm_bindgen_test]
+    fn test_ed25519_sign_verify() {
+        let keypair = crate::vrf::generate_keypair();
+        let sk = keypair.secret_key();
+        let pk = keypair.public_key();
+        let data = b"hello world";
+        let signature = ed25519_sign(&sk, data).unwrap();
+        assert_eq!(signature.len(), 64);
+        assert!(ed25519_verify(&pk, data, &signature));
+    }
+
+    /// Test Ed25519 verification rejects tampered data.
+    #[wasm_bindgen_test]
+    fn test_ed25519_rejects_tampered() {
+        let keypair = crate::vrf::generate_keypair();
+        let sk = keypair.secret_key();
+        let pk = keypair.public_key();
+        let data = b"hello world";
+        let signature = ed25519_sign(&sk, data).unwrap();
+
+        // Tamper with data
+        let mut tampered_data = data.to_vec();
+        tampered_data[0] ^= 0xff;
+        assert!(!ed25519_verify(&pk, &tampered_data, &signature));
+
+        // Tamper with signature
+        let mut tampered_sig = signature.clone();
+        tampered_sig[0] ^= 0xff;
+        assert!(!ed25519_verify(&pk, data, &tampered_sig));
+    }
+
+    /// Test Ed25519 with invalid key lengths.
+    #[wasm_bindgen_test]
+    fn test_ed25519_invalid_key() {
+        let result = ed25519_sign(&[0u8; 16], b"test");
+        assert!(result.is_err());
     }
 }

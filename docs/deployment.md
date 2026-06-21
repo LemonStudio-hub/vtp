@@ -27,6 +27,9 @@
   - [Netlify](#netlify)
   - [GitHub Pages](#github-pages)
   - [AWS S3 + CloudFront](#aws-s3--cloudfront)
+- [Signaling Server](#signaling-server)
+  - [Cloudflare Durable Objects](#cloudflare-durable-objects)
+  - [Local Development](#local-development)
 - [CI/CD](#cicd)
   - [GitHub Actions](#github-actions)
   - [GitLab CI](#gitlab-ci)
@@ -45,12 +48,10 @@
 
 ## Overview
 
-VTP Node is a static web application that can be deployed to any static hosting platform. The application consists of:
+VTP Node consists of two independently deployable components:
 
-1. **HTML/CSS/JavaScript**: Svelte application compiled to static files
-2. **WebAssembly**: Rust core library compiled to Wasm
-3. **Web Worker**: Background computation thread
-4. **Service Worker**: PWA caching layer
+1. **Frontend Application** (static): Svelte app compiled to HTML/CSS/JS + WebAssembly + Web Worker + Service Worker
+2. **Signaling Server** (Cloudflare Worker + Durable Objects): WebSocket relay for WebRTC peer discovery
 
 ### Deployment Requirements
 
@@ -145,9 +146,17 @@ Create a `.env.production` file:
 NODE_ENV=production
 BASE_URL=https://vtp-node.dev
 
+# Signaling Server
+SIGNALING_SERVER_URL=wss://signal.vtp-node.dev
+SIGNALING_ROOM_ID=vtp-default
+
 # VDF Configuration
 VDF_DEFAULT_TOTAL=1000000
 VDF_CHECKPOINT_INTERVAL=100000
+
+# Consensus
+CONSENSUS_TAU=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+CONSENSUS_ROUND_TIMEOUT_MS=30000
 
 # Performance
 WORKER_BATCH_SIZE=1000
@@ -486,6 +495,92 @@ jobs:
 
 ---
 
+## Signaling Server
+
+The signaling server is a **Cloudflare Worker** backed by **Durable Objects** that acts as a transparent WebSocket relay for WebRTC peer discovery. It is deployed independently from the frontend.
+
+### Cloudflare Durable Objects
+
+#### Setup
+
+1. **Install Wrangler**
+
+   ```bash
+   npm install -g wrangler
+   ```
+
+2. **Login to Cloudflare**
+
+   ```bash
+   wrangler login
+   ```
+
+3. **Configure `signaling/wrangler.toml`**
+
+   ```toml
+   name = "vtp-signaling"
+   main = "src/index.ts"
+   compatibility_date = "2024-01-01"
+   compatibility_flags = ["nodejs_compat"]
+
+   [durable_objects]
+   bindings = [{ name = "SIGNALING_ROOM", class_name = "SignalingRoom" }]
+
+   [[migrations]]
+   tag = "v1"
+   new_classes = ["SignalingRoom"]
+   ```
+
+4. **Deploy**
+
+   ```bash
+   cd signaling
+   npm install
+   wrangler deploy
+   ```
+
+5. **Verify**
+
+   ```bash
+   curl https://vtp-signaling.<your-subdomain>.workers.dev/health
+   # Expected: {"status":"ok","service":"vtp-signaling"}
+   ```
+
+#### Endpoints
+
+| Endpoint               | Method          | Description                     |
+| ---------------------- | --------------- | ------------------------------- |
+| `/room/:roomId/ws`     | GET (WebSocket) | WebSocket upgrade for signaling |
+| `/room/:roomId/health` | GET             | Room health check               |
+| `/room/:roomId/stats`  | GET             | Room statistics                 |
+| `/health`              | GET             | Worker-level health check       |
+
+#### Configuration
+
+Set the signaling server URL in your frontend `.env.production`:
+
+```env
+SIGNALING_SERVER_URL=wss://vtp-signaling.<your-subdomain>.workers.dev
+```
+
+### Local Development
+
+For local signaling server development:
+
+```bash
+cd signaling
+npm install
+npx wrangler dev
+```
+
+This starts a local Cloudflare Worker runtime on `http://localhost:8787`. Update your `.env.local`:
+
+```env
+SIGNALING_SERVER_URL=ws://localhost:8787
+```
+
+---
+
 ## CI/CD
 
 ### GitHub Actions
@@ -567,6 +662,27 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: vtp-node
           directory: build
+
+  deploy-signaling:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Deploy Signaling Server
+        run: |
+          cd signaling
+          npm ci
+          npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 ```
 
 ### GitLab CI
@@ -823,7 +939,7 @@ Content-Security-Policy:
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: https:;
   font-src 'self';
-  connect-src 'self' https://api.vtp-node.dev;
+  connect-src 'self' https://api.vtp-node.dev wss://signal.vtp-node.dev;
   worker-src 'self' blob:;
   wasm-src 'self';
 ```
@@ -893,6 +1009,28 @@ location ~* \.wasm$ {
 2. Configure caching headers
 3. Optimize images
 4. Use CDN
+
+#### WebSocket Connection Fails
+
+**Error**: Signaling server connection refused
+
+**Solution**:
+
+1. Verify `SIGNALING_SERVER_URL` is correct
+2. Ensure the signaling worker is deployed (`wrangler deploy`)
+3. Check that the URL uses `wss://` (not `ws://`) in production
+4. Verify the Cloudflare Worker is healthy: `curl https://<signal-url>/health`
+
+#### WebRTC Peers Not Connecting
+
+**Error**: Peers discover each other but DataChannel never opens
+
+**Solution**:
+
+1. Check that STUN servers are accessible (Google STUN on port 19302)
+2. Verify the `connect-src` CSP includes the signaling server URL
+3. Check browser console for ICE candidate errors
+4. Ensure both peers are in the same signaling room
 
 ### Debug Mode
 

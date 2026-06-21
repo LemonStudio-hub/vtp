@@ -39,6 +39,18 @@ wasm-bindgen-test = "0.3"
 criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
 sha2 = "0.10"
 
+[[bench]]
+name = "vdf_bench"
+harness = false
+
+[[bench]]
+name = "vrf_bench"
+harness = false
+
+[[bench]]
+name = "session_bench"
+harness = false
+
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
 

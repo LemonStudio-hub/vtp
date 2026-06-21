@@ -671,6 +671,7 @@ Use Chrome DevTools for profiling:
 - **[Architecture Guide](docs/architecture.md)**: System architecture overview
 - **[Development Guide](docs/development.md)**: Development setup and workflow
 - **[Deployment Guide](docs/deployment.md)**: Production deployment instructions
+- **[Cryptographic Security Verification](docs/cryptographic-security-verification.md)**: Professional-grade security audit report
 
 ---
 

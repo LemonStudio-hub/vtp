@@ -22,7 +22,8 @@ import {
   workerState,
   progress,
   addEvent,
-  resetWorkerState
+  resetWorkerState,
+  pushSpeedHistory
 } from '../src/stores/worker';
 
 /**
@@ -155,6 +156,9 @@ describe('workerState', () => {
     expect(state.luckPercentage).toBe(100);
     expect(state.publicKey).toBeNull();
     expect(state.nodeId).toBe('---');
+    expect(state.memoryUsage).toBe(0);
+    expect(state.speedHistory).toEqual([]);
+    expect(state.peakSpeed).toBe(0);
   });
 
   /**
@@ -239,6 +243,48 @@ describe('progress', () => {
 });
 
 /**
+ * Tests for the `pushSpeedHistory` function.
+ *
+ * This function pushes a new speed reading into the rolling history buffer,
+ * caps it at 60 entries, and tracks the peak speed.
+ */
+describe('pushSpeedHistory', () => {
+  beforeEach(() => {
+    resetWorkerState();
+  });
+
+  it('updates speed and pushes to history', () => {
+    pushSpeedHistory(5000);
+    const state = get(workerState);
+    expect(state.speed).toBe(5000);
+    expect(state.speedHistory).toEqual([5000]);
+  });
+
+  it('caps history at 60 entries', () => {
+    for (let i = 0; i < 65; i++) {
+      pushSpeedHistory(i * 100);
+    }
+    const state = get(workerState);
+    expect(state.speedHistory).toHaveLength(60);
+    expect(state.speedHistory[0]).toBe(500);
+    expect(state.speedHistory[59]).toBe(6400);
+  });
+
+  it('tracks peak speed', () => {
+    pushSpeedHistory(1000);
+    pushSpeedHistory(5000);
+    pushSpeedHistory(2000);
+    expect(get(workerState).peakSpeed).toBe(5000);
+  });
+
+  it('does not lower peak speed on slower readings', () => {
+    pushSpeedHistory(8000);
+    pushSpeedHistory(1000);
+    expect(get(workerState).peakSpeed).toBe(8000);
+  });
+});
+
+/**
  * Tests for the `resetWorkerState` function.
  *
  * This function resets both `workerState` and `events` back to their
@@ -258,7 +304,10 @@ describe('resetWorkerState', () => {
       isRunning: true,
       currentStep: 5000,
       speed: 1000,
-      winnerCount: 3
+      winnerCount: 3,
+      memoryUsage: 1024 * 1024,
+      speedHistory: [1, 2, 3],
+      peakSpeed: 9999
     }));
     addEvent({ type: 'info', message: 'test' });
 
@@ -270,7 +319,62 @@ describe('resetWorkerState', () => {
     expect(state.currentStep).toBe(0);
     expect(state.speed).toBe(0);
     expect(state.winnerCount).toBe(0);
+    expect(state.memoryUsage).toBe(0);
+    expect(state.speedHistory).toEqual([]);
+    expect(state.peakSpeed).toBe(0);
     // Verify the events log is also cleared
     expect(get(events)).toEqual([]);
+  });
+});
+
+/**
+ * Tests for store subscription behavior.
+ *
+ * Svelte components use `subscribe()` (via the `$` prefix) rather than `get()`.
+ * These tests verify the reactive notification pattern works correctly.
+ */
+describe('workerState subscribe pattern', () => {
+  beforeEach(() => {
+    resetWorkerState();
+  });
+
+  it('notifies subscribers on update', () => {
+    const values: boolean[] = [];
+    const unsub = workerState.subscribe((s) => values.push(s.isRunning));
+
+    workerState.update((s) => ({ ...s, isRunning: true }));
+    workerState.update((s) => ({ ...s, isRunning: false }));
+
+    unsub();
+    // Initial value + 2 updates
+    expect(values).toEqual([false, true, false]);
+  });
+
+  it('notifies multiple subscribers independently', () => {
+    const values1: number[] = [];
+    const values2: number[] = [];
+
+    const unsub1 = workerState.subscribe((s) => values1.push(s.currentStep));
+    const unsub2 = workerState.subscribe((s) => values2.push(s.currentStep));
+
+    workerState.update((s) => ({ ...s, currentStep: 100 }));
+
+    unsub1();
+    unsub2();
+
+    expect(values1).toEqual([0, 100]);
+    expect(values2).toEqual([0, 100]);
+  });
+
+  it('stops notifying after unsubscribe', () => {
+    const values: boolean[] = [];
+    const unsub = workerState.subscribe((s) => values.push(s.isRunning));
+
+    workerState.update((s) => ({ ...s, isRunning: true }));
+    unsub();
+    workerState.update((s) => ({ ...s, isRunning: false }));
+
+    // Should only have initial + first update, not the second
+    expect(values).toEqual([false, true]);
   });
 });

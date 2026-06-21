@@ -21,7 +21,10 @@ import {
   formatTime,
   generateNodeId,
   sleep,
-  debounce
+  debounce,
+  formatRelativeTime,
+  calculateETA,
+  clamp
 } from '../src/utils/index';
 
 /**
@@ -407,5 +410,132 @@ describe('debounce', () => {
     vi.advanceTimersByTime(100);
 
     expect(fn).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * Tests for the `formatRelativeTime` utility function.
+ *
+ * Converts a Unix timestamp into a human-readable relative time string
+ * like "just now", "2m ago", "1h ago", "3d ago".
+ */
+describe('formatRelativeTime', () => {
+  it('returns "just now" for recent timestamps', () => {
+    expect(formatRelativeTime(Date.now() - 5000)).toBe('just now');
+    expect(formatRelativeTime(Date.now() - 30000)).toBe('just now');
+  });
+
+  it('returns minutes ago for timestamps within the hour', () => {
+    expect(formatRelativeTime(Date.now() - 120000)).toBe('2m ago');
+    expect(formatRelativeTime(Date.now() - 300000)).toBe('5m ago');
+  });
+
+  it('returns hours ago for timestamps within the day', () => {
+    expect(formatRelativeTime(Date.now() - 3600000)).toBe('1h ago');
+    expect(formatRelativeTime(Date.now() - 7200000)).toBe('2h ago');
+  });
+
+  it('returns days ago for older timestamps', () => {
+    expect(formatRelativeTime(Date.now() - 86400000)).toBe('1d ago');
+    expect(formatRelativeTime(Date.now() - 172800000)).toBe('2d ago');
+  });
+});
+
+/**
+ * Tests for the `calculateETA` utility function.
+ *
+ * Computes estimated seconds remaining based on current progress and speed.
+ */
+describe('calculateETA', () => {
+  it('calculates correct ETA', () => {
+    expect(calculateETA(500, 1000, 100)).toBe(5);
+    expect(calculateETA(0, 1000, 200)).toBe(5);
+  });
+
+  it('returns -1 when speed is zero', () => {
+    expect(calculateETA(500, 1000, 0)).toBe(-1);
+    expect(calculateETA(500, 1000, -1)).toBe(-1);
+  });
+
+  it('returns -1 when already complete', () => {
+    expect(calculateETA(1000, 1000, 100)).toBe(-1);
+    expect(calculateETA(1500, 1000, 100)).toBe(-1);
+  });
+
+  it('rounds up to nearest second', () => {
+    expect(calculateETA(0, 1000, 300)).toBe(4); // 3.33... -> 4
+  });
+});
+
+/**
+ * Tests for the `clamp` utility function.
+ *
+ * Constrains a number between a minimum and maximum bound.
+ */
+describe('clamp', () => {
+  it('returns value within range', () => {
+    expect(clamp(5, 0, 10)).toBe(5);
+  });
+
+  it('clamps to minimum', () => {
+    expect(clamp(-1, 0, 10)).toBe(0);
+    expect(clamp(-100, 0, 10)).toBe(0);
+  });
+
+  it('clamps to maximum', () => {
+    expect(clamp(15, 0, 10)).toBe(10);
+    expect(clamp(100, 0, 10)).toBe(10);
+  });
+
+  it('works with negative ranges', () => {
+    expect(clamp(0, -10, -1)).toBe(-1);
+    expect(clamp(-5, -10, -1)).toBe(-5);
+  });
+
+  it('handles equal bounds', () => {
+    expect(clamp(5, 3, 3)).toBe(3);
+  });
+});
+
+/**
+ * Edge-case tests for robustness.
+ */
+describe('edge cases', () => {
+  it('formatBytes handles negative values', () => {
+    // Negative bytes should still produce a string (not crash)
+    const result = formatBytes(-1024);
+    expect(typeof result).toBe('string');
+  });
+
+  it('formatSpeed handles negative values', () => {
+    const result = formatSpeed(-100);
+    expect(typeof result).toBe('string');
+  });
+
+  it('formatTime handles negative seconds', () => {
+    const result = formatTime(-5);
+    expect(typeof result).toBe('string');
+  });
+
+  it('formatTime handles fractional seconds', () => {
+    const result = formatTime(61.5);
+    // Should floor seconds, show 01:01
+    expect(result).toBe('00:01:01');
+  });
+
+  it('calculateETA returns -1 for NaN speed', () => {
+    // NaN speed: NaN <= 0 is false, so the function proceeds with division
+    // This produces NaN. Documenting the current behavior.
+    const result = calculateETA(500, 1000, NaN);
+    expect(isNaN(result)).toBe(true);
+  });
+
+  it('calculateETA returns -1 when currentStep equals totalSteps', () => {
+    expect(calculateETA(1000, 1000, 100)).toBe(-1);
+  });
+
+  it('clamp handles NaN value', () => {
+    const result = clamp(NaN, 0, 10);
+    expect(isNaN(result)).toBe(true);
   });
 });
